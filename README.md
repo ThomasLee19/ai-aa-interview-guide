@@ -2,7 +2,7 @@
 
 # 🚀 AI 应用开发工程师面试宝典
 
-> **⚠️ 本次更新(v3.87)：新增 Q39-Q40 AI编程工具(SWE-bench May 2026/工作流引擎)；Q17 RAG防御体系；Q13 Agent Memory架构**
+> **⚠️ 本次更新(v3.88)：新增 Q39-Q40 AI编程工具(SWE-bench May 2026/工作流引擎)；Q17 RAG防御体系；Q13 Agent Memory架构；Q26 EAGLE投机采样**
 
 **🎯 373+ 道高频面试题 | 24 个核心模块 | 从基础到进阶系统化学习**
 
@@ -935,15 +935,15 @@ Made with ❤️ for the AI Community
 *版本: v3.85 | 更新: 2026-04-25 | by 二狗子 🐕*
 
 
-## 📚 数据更新（v3.87 - 2026-05-08）
+## 📚 数据更新（v3.88 - 2026-05-08）
 
 | 序号 | 模块 | 新增内容 | 高频度 | 题数 |
 |------|------|----------|--------|------|
-| 🆕 | [💻 AI编程工具（新增Q39-Q40）](docs/17-ai-coding-tools/) | Q39 SWE-bench May 2026最新榜单（Claude Mythos 93.9%登顶/17pt scaffold差距/Agent选型决策）；Q40 AI编程工作流引擎（Cursor Rules/Routines/Workspace/企业级规则化实践） | 🔥🔥🔥🔥🔥 | +2 |
+| 🆕 | [🔬 推理框架（新增Q26）](docs/19-inference-frameworks/) | Q26 EAGLE投机采样（vs DFlash/自回归头/接受率85-95%/vLLM EAGLE v3 lookahead多步预测） | 🔥🔥🔥🔥 | +1 |
 | 🆕 | [🔬 RAG高级优化（新增Q17）](docs/20-rag-advanced-optimization/) | Q17 可防御RAG（5大结构性风险/7大决策/混合搜索RRF/Agentic RAG/企业级合规架构） | 🔥🔥🔥🔥 | +1 |
 | 🆕 | [🧠 Agent规划与反思（新增Q13）](docs/22-agent-planning-reflection/) | Q13 Agent Memory架构（Flat Vector/Episodic/Graph/Hybrid对比/Mem0+Zep+Letta/LOCOMO benchmark/MemSync跨设备同步） | 🔥🔥🔥🔥 | +1 |
 
-*版本: v3.87 | 更新: 2026-05-08 | by 二狗子 🐕*
+*版本: v3.88 | 更新: 2026-05-08 | by 二狗子 🐕*
 
 
 ## 📚 数据更新（v3.86 - 2026-04-30）

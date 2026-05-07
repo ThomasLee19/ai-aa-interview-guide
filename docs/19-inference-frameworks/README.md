@@ -1273,6 +1273,119 @@ llm = LLM(
 
 </details>
 
+
 ---
 
-*版本: v2.7 | 更新: 2026-04-16 | by 二狗子 🐕*
+### Q26: 什么是 EAGLE 投机采样？为什么它比传统 Speculative Decoding 更快？2026年 vLLM EAGLE v3 有哪些核心改进？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**传统 Speculative Decoding 的问题：**
+
+| 问题 | 说明 |
+|------|------|
+| **小模型能力弱** | Draft 模型和大模型能力差距大，拒绝率高 |
+| **逐 token 生成** | 小模型每次只生成 1 个 token，生成效率低 |
+| **长依赖预测差** | 代码、推理等长依赖场景，小模型猜不准 |
+
+**EAGLE（Extrapolation Algorithm for Greater Language-model Efficiency）的核心思想：**
+
+```
+传统 Speculative Decoding：
+小模型（弱）→ 逐 token 生成 → 大模型验证 → 接受/拒绝
+
+EAGLE：
+Draft模型 = 同一大模型的自回归头（不是另一个小模型）
+→ 预测基于"上下文向量 + 已采样 token"（不是只看已采样）
+→ 捕捉更长依赖，接受率大幅提升
+```
+
+
+**EAGLE vs 传统 Speculative Decoding：**
+
+| 维度 | 传统 Spec Decoding | EAGLE |
+|------|----------------------|-------|
+| **Draft 模型** | 小模型（如 0.5B） | 同一大模型的自回归头 |
+| **预测基础** | 已采样 token | 上下文向量 + 已采样 token |
+| **接受率** | 50-70% | 85-95% |
+| **速度提升** | 2-3x | 3-5x |
+| **额外显存** | 小模型参数 | 可忽略（复用大模型） |
+
+
+**为什么 EAGLE 接受率更高？**
+
+```
+关键洞察：Draft 模型的"能力上限"决定了投机采样的天花板
+
+传统方法：小模型 = 能力弱 = 猜不准 = 大量拒绝
+EAGLE：Draft模型 = 同一大模型 = 能力接近 = 猜得准
+
+Draft 模型不是另一个独立模型，而是大模型的自回归头
+它参考的是"已经计算出的上下文向量"（KV Cache），不是"历史 token"
+→ 预测更准，接受率更高
+```
+
+
+**EAGLE v3（2026年最新）的核心改进：**
+
+
+| 改进 | 说明 |
+|------|------|
+| **Lookahead 多步预测** | 一次生成 2-5 个 token，不是逐个 |
+| **RRR（验证阶段加速）** | 用块验证代替逐 token 验证 |
+| **KV Cache 优化** | 减少 lookahead 带来的 KV Cache 碎片 |
+| **集成到 vLLM v0.10+** | 原生支持，一行配置启用 |
+
+
+**vLLM EAGLE 配置示例：**
+
+
+```python
+from vllm import LLM, SamplingParams
+
+
+llm = LLM(
+    model="meta-llama/Meta-Llama-3-8B-Instruct",
+    tensor_parallel_size=4,
+    speculative_config={
+        "model": "yuhuili/EAGLE-LLaMA3-Instruct-8B",
+        "draft_tensor_parallel_size": 1,
+        "num_speculative_tokens": 4,  # 一次预测 4 个 token
+        "method": "eagle",
+    },
+)
+```
+
+**EAGLE vs DFlash 对比：**
+
+
+| 维度 | EAGLE | DFlash |
+|------|-------|--------|
+| **Draft 来源** | 同一大模型的自回归头 | 块扩散模型（单独训练）|
+| **预测方式** | 自回归（基于 KV Cache）| 扩散（基于噪声）|
+| **适用场景** | 通用推理、高接受率 | 长代码/推理（跨行依赖）|
+| **vLLM 集成** | v0.10+ 原生支持 | vLLM/SGLang 原生支持 |
+| **速度提升** | 3-5x | 2-4x（代码场景更高）|
+
+
+**面试话术：**
+
+> "EAGLE 是 2026 年投机采样的重要方向，它解决了一个核心问题：传统方法用小模型猜，猜不准（接受率50-70%）。EAGLE 的创新是 Draft 模型就是大模型本身，只是用它来自回归预测——参考的是已计算出的上下文向量，不是简单看历史 token，所以猜得更准，接受率85-95%。EAGLE v3 的 lookahead 更是从逐 token 预测变成多步预测，配合 RRR 验证加速，整体加速 3-5x。我在实际项目里用 vLLM + EAGLE，在代码补全场景实测加速 4 倍。面试时能说清 EAGLE 的原理，说明你对推理优化有深入理解，不是只会调 API。"
+
+
+**生产选型建议：**
+
+
+| 场景 | 推荐方案 |
+|------|----------|
+| 通用对话、客服 | EAGLE（高接受率，3-5x 加速）|
+| 代码生成、长代码 | DFlash（跨行依赖预测强）|
+| 长上下文文档分析 | EAGLE + PagedAttention 动态调整 |
+| 实时性要求极高 | TRT-LLM（编译优化，不需要投机）|
+
+</details>
+
+---
+
+*版本: v2.8 | 更新: 2026-05-08 | by 二狗子 🐕*
