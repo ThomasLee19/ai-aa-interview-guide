@@ -515,4 +515,209 @@ CrewAI 风格的"指挥官模式"：
 
 </details>
 
-*版本: v2.7 | 更新: 2026-04-24 | by 二狗子 🐕*
+---
+
+### Q13: 什么是 Agent Memory 架构？Flat Vector、Episodic、Graph、Hybrid 四种架构各适合什么场景？2026年 Mem0/Zep/Letta/LOCOMO 有哪些新进展？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**为什么 Agent 需要 Memory？**
+
+```
+一个没有 Memory 的 Agent = "金鱼仙人"（只有7秒记忆）
+
+每次对话：
+- 不记得你是谁
+- 不记得之前讨论过什么
+- 不记得项目背景是什么
+
+→ 根本无法完成复杂任务
+
+Memory 让 Agent 跨越会话，积累知识，持续进化
+```
+
+**2026年 AI Agent Memory 市场：**
+
+| 数据 | 值 |
+|------|-----|
+| 市场规模 | $62.7亿（2026年） |
+| 预计2030年 | $284.5亿 |
+| 年复合增长率 | 35% |
+
+**四种 Memory 架构：**
+
+| 架构 | 原理 | 适用场景 | 代表方案 |
+|------|------|----------|----------|
+| **Flat Vector** | 所有记忆向量化，语义搜索 | 简单检索、快速实现 | Mem0、Zep |
+| **Episodic** | 时间顺序存储，上下文分页 | 长对话、多轮会话 | Letta、MemGPT |
+| **Graph** | 实体关系图谱，路径推理 | 复杂关系、多跳查询 | Neo4j Graph-RAG |
+| **Hybrid** | 组合以上多种 | 生产级复杂系统 | Mem0+Graph、Zep+Episodic |
+
+**Flat Vector（扁导向量）—— 简单直接：**
+
+```python
+# Mem0 风格：直接存储，快速检索
+memories = [
+    {"content": "用户喜欢简洁的代码风格", "embedding": [...], "user_id": "u1"},
+    {"content": "项目使用 Python 3.11", "embedding": [...], "user_id": "u1"},
+]
+
+# 检索时语义搜索
+results = mem0_client.search(
+    query="代码风格偏好",
+    user_id="u1",
+    limit=3
+)
+```
+
+**优点：** 简单、便宜、快速
+**缺点：** 无法处理实体关系、时序关系
+
+**Episodic（情景记忆）—— 时序连续：**
+
+Letta/MemGPT 的核心思想：
+- 对话历史太长 → 压缩摘要（Summarize）
+- 需要时 → 分页调入上下文（Page-in）
+- 保持叙事连贯性
+
+```
+┌─────────────────────────────────────────┐
+│ Episodic Memory 架构                    │
+├─────────────────────────────────────────┤
+│                                         │
+│  Session 1: [msg1, msg2, msg3]          │
+│  → 摘要: "用户讨论了RAG架构选型"          │
+│                                         │
+│  Session 2: [msg1, msg2]                │
+│  → 摘要: "用户选择了混合检索方案"          │
+│                                         │
+│  Session 3: [msg1]                      │
+│  → 加载 Session 1+2 摘要到上下文          │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**优点：** 长对话连贯、叙事完整
+**缺点：** 额外延迟（摘要+Page-in）、可能丢失细节
+
+**Graph（图谱记忆）—— 关系推理：**
+
+当问题涉及"谁认识谁"、"实体间约束"、"时序关系"时，向量存储不够用：
+
+```
+用户问："和张三同组的工程师有谁？"
+
+向量检索："张三" → 找到包含张三的chunk
+
+图谱检索：
+  张三 ──属于──→ 项目A ──成员──→ 李四、王五
+         │
+         └──属于──→ 项目B ──成员──→ 赵六
+
+→ 直接返回 [李四, 王五, 赵六]，带关系解释
+```
+
+**代表方案：** Neo4j + Graph-RAG、TypeDB
+
+**优点：** 复杂关系推理、可解释性高
+**缺点：** 实现复杂、需要额外知识建模
+
+**Hybrid（混合架构）—— 生产级选择：**
+
+2026年主流方案，组合多种 Memory：
+
+```python
+# Mem0 Hybrid 示例
+memory_config = {
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {...}
+    },
+    "graph_store": {
+        "provider": "neo4j",
+        "config": {...}
+    }
+}
+
+# Mem0 自动决定用哪种 Memory
+response = mem0_client.search(
+    query="项目组成员的技术栈",
+    user_id="u1",
+    mode="hybrid"  # 自动融合 vector + graph 结果
+)
+```
+
+**LOCOMO Benchmark（2026年重大事件）：**
+
+专门评估长期对话 Memory 的标准化数据集：
+
+```
+LOCOMO = LOng-COnversational-MOemory benchmark
+
+测试维度：
+- 实体记忆（能否记住关键人物/项目）
+- 关系记忆（能否记住实体间关系）
+- 时间记忆（能否记住事件顺序）
+- 一致性（跨会话记忆是否一致）
+```
+
+**Mem0 最新进展（ECAI 2025）：**
+
+Mem0 发布了论文《Building Production-Ready AI Agents with Scalable Long-Term Memory》，核心贡献：
+
+1. **跨会话持久化**
+   - Memory 不只是 Session 级别，而是 User 级别
+   - 用户下次来，Agent 自动加载历史 Memory
+
+2. **自适应提取**
+   - 不需要手动标注哪些信息重要
+   - Agent 自动决定哪些信息值得记忆
+
+3. **多模态 Memory**
+   - 支持文本、图像、代码片段
+   - 跨模态检索
+
+**Zep vs Mem0 vs Letta 对比：**
+
+| 维度 | Zep | Mem0 | Letta |
+|------|-----|------|------|
+| **架构** | Flat Vector | Hybrid (Vector+Graph) | Episodic |
+| **难度** | ⭐ 简单 | ⭐⭐ 中等 | ⭐⭐⭐ 复杂 |
+| **成本** | 低 | 中 | 高 |
+| **适用场景** | 快速原型 | 生产级 | 长对话系统 |
+| **多模态** | 文本 | 文本+图像 | 文本 |
+
+**MemSync 架构（跨设备同步）：**
+
+```
+用户手机上的 Agent
+    ↓ (Memory Sync)
+用户电脑上的 Agent
+    ↓ (Memory Sync)
+用户手表上的 Agent
+
+= 全设备统一 Memory 体验
+```
+
+**面试话术：**
+
+> "Agent Memory 是 2026 年生产的核心组件。我设计 Memory 系统时会考虑三层：Flat Vector 存语义记忆（快速检索）、Episodic 存对话历史（保持连贯）、Graph 存实体关系（复杂推理）。实际项目我选 Mem0 的 Hybrid 模式，因为它的向量+图谱组合最接近生产需求。关键洞察：大多数 Memory 失败不是'生成问题'，而是'检索问题'——agent 其实记住了，只是找不到。Memory 架构决定了你 agent 的'记忆质量上限'。"
+
+**生产选型决策树：**
+
+```
+需要跨会话记忆？
+├── 否 → 不需要 Memory 系统
+└── 是
+    ├── 简单检索 → Mem0 Flat / Zep
+    ├── 长对话连贯 → Letta / MemGPT Episodic
+    ├── 复杂关系推理 → Neo4j Graph-RAG
+    └── 生产级复杂 → Mem0 Hybrid / Zep+Graph
+```
+
+</details>
+
+---
+
+*版本: v2.8 | 更新: 2026-05-08 | by 二狗子 🐕*

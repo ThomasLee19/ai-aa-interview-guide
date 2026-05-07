@@ -3910,4 +3910,215 @@ Daniel Lemire（知名性能工程师）在博客中记录了一场"AI 写汇编
 
 ---
 
-*版本: v2.24 | 更新: 2026-04-20 | by 二狗子 🐕*
+### Q39: SWE-bench 2026年5月最新榜单有哪些重大变化？为什么"模型性能"和"Agent scaffold质量"同等重要？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**2026年5月 SWE-bench Verified 最新榜单（benchlm.ai 2026-05-05）：**
+
+| 排名 | 模型 | SWE-bench Verified | 备注 |
+|------|------|---------------------|------|
+| 🥇 1 | **Claude Mythos Preview** | **93.9%** | 2026年5月登顶，超越所有已知模型 |
+| 🥈 2 | Claude Opus 4.7 (Adaptive) | 87.6% | +7pt from Opus 4.6（80.8%） |
+| 🥉 3 | GPT-5.3 Codex | 85% | OpenAI 代码专用模型 |
+| 4 | GPT-5.4 | ~82% | GPT-5家族代码能力 |
+| 5 | Gemini 3.1 Pro | 80.6% | 价格$2/$12，60%低于Opus |
+| 6 | Claude Sonnet 4.6 | 79.6% | 中端主力 |
+| 7 | MiniMax M2.5 | 80.2% | 开源，自进化Agent |
+| 8 | Kimi K2.5 | 76.8% | 国产 |
+| 9 | DeepSeek V3.2 | 72-74% | 开源性价比 |
+
+**关键变化：**
+
+1. **Claude Mythos Preview 93.9% 登顶**
+   - 但 Anthropic 选择不公开发布（网络安全能力过强）
+   - 仅通过 Project Glasswing 给网络安全公司使用
+   - 代表 AI 安全的"负责任克制"新范式
+
+2. **Claude Opus 4.7 跳跃式提升（80.8% → 87.6%，+7pt）**
+   - "Adaptive"版本引入动态推理策略
+   - SWE-bench Pro 达到 87.6%（vs Gemini 3.1 Pro 54.2%）
+   - 7pt 提升意味着每100个bug能多修复7个
+
+3. **开源模型快速追赶**
+   - MiniMax M2.5 达 80.2%，开源最高
+   - Qwen3-Coder-Next、GLM-5 形成竞争
+   - DeepSeek V3.2 达 72-74%
+
+**为什么 SWE-bench 2026年更重要：**
+
+```
+SWE-bench = 真实 GitHub Issue 修复能力
+
+不是：
+- 人工构造的简单编程题
+- 教科书级的算法题
+
+而是：
+- Django（850题）、Sympy（386题）、scikit-learn（229题）
+- 真实开源项目，真实bug，真实PR
+- 需要理解整个代码库、多文件修改、测试验证
+```
+
+**核心洞察：Agent Scaffold 比模型本身更重要**
+
+2026年Berkeley论文揭示：
+
+| 发现 | 数据 |
+|------|------|
+| **同一模型不同 scaffold 差异** | 高达 **17个百分点** |
+| **scaffold 质量决定上限** | 再强的模型用烂 scaffold 也白搭 |
+| **Claude Code 80.8%** | = Opus 4.5 + 优秀 scaffold |
+| **其他工具可能低于预期** | 模型强不等于工具强 |
+
+**为什么差异这么大？**
+
+```
+Scaffold = Agent 的"操作系统"
+
+好的 scaffold：
+- 正确拆解任务（理解Issue → 定位文件 → 改代码 → 跑测试）
+- 有效的上下文管理（不丢信息、不超限）
+- 准确的测试验证（避免假通过）
+
+差的 scaffold：
+- 任务拆解错误（改错文件）
+- 上下文丢失（看了后面忘前面）
+- 测试验证失败（把错误代码当正确）
+```
+
+**面试话术：**
+
+> "2026年5月 SWE-bench 最新数据：Claude Mythos Preview 93.9% 登顶，但因安全原因不公开发布；Claude Opus 4.7 达 87.6%，较上一代提升 7pt。但最重要的洞察不是分数，而是'17个百分点差距'——同一模型用不同 scaffold 评测，结果差异高达 17pt。这意味着：选 AI 编程工具不只是选模型，更是选 scaffold 的工程质量。我在面试时会强调：我选择 Claude Code 是因为它的 scaffold 设计最成熟，不是只看模型分数。"
+
+**生产级选型建议：**
+
+| 场景 | 推荐 | 理由 |
+|------|------|------|
+| 企业级代码修复 | Claude Code / Codex | scaffold 成熟，87%+ 解决率 |
+| 长上下文项目 | Claude Code | 200K上下文，优秀记忆管理 |
+| 成本敏感 | Gemini 3.1 Pro | 80.6%达标，价格低60% |
+| 开源本地部署 | MiniMax M2.5 | 80.2%开源，自进化 |
+
+</details>
+
+---
+
+### Q40: 什么是"AI编程工作流引擎"？2026年为什么 Cursor Rules、Claude Code Routines、Copilot Workspace 成为新热点？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**从工具到"工作流引擎"的范式转变：**
+
+| 时代 | 特点 | 代表 |
+|------|------|------|
+| **2019-2023** | IDE插件，补全代码 | Copilot Ghost text |
+| **2024** | AI Agent，自主执行多步任务 | Claude Code Dev Mode |
+| **2026** | **工作流引擎**，标准化、可复用、可组合 | Cursor Rules、Routines、Workspace |
+
+**三大工作流引擎对比：**
+
+| 工具 | 核心机制 | 适用场景 | 上手难度 |
+|------|----------|----------|----------|
+| **Cursor Rules** | 目录级配置文件（cursor-rules/），可版本控制、团队共享 | 团队代码风格统一、大项目规范 | ⭐⭐ |
+| **Claude Code Routines** | 自动化工作流脚本，可定时、触发、组合 | CI/CD自动化、重复性任务 | ⭐⭐⭐ |
+| **Copilot Workspace** | 自然语言 → 可执行计划 → 自动执行 | 非工程师友好、探索性任务 | ⭐ |
+
+**Cursor Rules 深度解析：**
+
+```json
+// .cursor/rules/typescript-best-practices.md
+---
+name: TypeScript Best Practices
+description: 企业级TypeScript开发规范
+applies:
+  - filePattern: "*.ts"
+  - minLines: 50
+---
+
+# 规则：必须显式类型
+- 所有函数参数必须有类型
+- 返回值类型必须标注
+- 禁止 `any`（除非明确标注）
+
+# 规则：错误处理
+- 必须 try-catch 或 .catch()
+- 错误必须记录日志
+```
+
+**为什么 Cursor Rules 是2026年企业级AI编程的关键：**
+
+1. **团队一致性**
+   - 代码风格自动统一（不再因人而异）
+   - 可版本控制（git 管理规则变更）
+   - 新人 onboarding 时间大幅缩短
+
+2. **规则可积累**
+   ```
+   项目A经验 → 提取规则 → 项目B复用
+   ```
+   团队最佳实践不再存在于个人脑中，而是固化在规则文件
+
+3. **与 Cursor Composer 结合**
+   - Rules 定义"做什么"
+   - Composer 执行"怎么做"
+   - = 企业级 AI 编程的最佳实践
+
+**Claude Code Routines（2026年4月重点更新）：**
+
+```bash
+# .claude/routines/daily-code-review.md
+---
+name: Daily Code Review
+trigger: cron(0 9 * * *)  # 每天9点执行
+steps:
+  - action: run "git diff --name-only HEAD~1"
+  - action: analyze-changes
+  - action: run-linter
+  - action: generate-review-report
+  - action: send-to-slack # 通过 MCP
+```
+
+**Copilot Workspace：**
+
+```
+输入："帮我把用户认证模块从JWT改成OAuth2，并确保不破坏现有测试"
+↓
+Workspace 生成执行计划：
+  1. 分析现有JWT实现
+  2. 调研OAuth2方案
+  3. 编写迁移代码
+  4. 运行测试验证
+  5. 更新文档
+↓
+用户批准后自动执行
+```
+
+**为什么2026年"工作流引擎"成为焦点：**
+
+| 驱动因素 | 说明 |
+|----------|------|
+| **团队协作需求** | AI编程从个人工具 → 团队基础设施 |
+| **质量一致性** | 规则化、标准化避免"AI随机性" |
+| **DevOps集成** | CI/CD流水线需要可预测的AI行为 |
+| **知识沉淀** | 专家经验 → 规则文件 → 可复用资产 |
+
+**面试话术：**
+
+> "2026年 AI 编程的最大变化是'工作流引擎'的崛起。Cursor Rules 把团队最佳实践固化在配置文件里，新人加入项目时，AI 自动遵循团队规范，而不是各用各的。Claude Code Routines 让 AI 自动化从'单次执行'变成'可定时、可触发、可组合'的工作流。我在团队里推行的是'规则优先'策略：先定义好代码规范和审查流程，再让 AI 按照规则执行，这比让 AI 自由发挥要可靠得多。"
+
+**企业落地三步曲：**
+
+```
+1. 选规则引擎（Cursor Rules 最成熟）
+2. 定义团队规范（类型安全/错误处理/测试要求）
+3. 集成 CI/CD（Routines + MCP 做自动化）
+```
+
+</details>
+
+---
+
+*版本: v2.30 | 更新: 2026-05-08 | by 二狗子 🐕*

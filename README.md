@@ -2,7 +2,7 @@
 
 # 🚀 AI 应用开发工程师面试宝典
 
-> **⚠️ 本次更新(v3.86)：新增 Q12 Process Reward Model（PRM）详解与Agent推理优化；修复15-advanced-topics模块Q13重复问题**
+> **⚠️ 本次更新(v3.87)：新增 Q39-Q40 AI编程工具(SWE-bench May 2026/工作流引擎)；Q17 RAG防御体系；Q13 Agent Memory架构**
 
 **🎯 373+ 道高频面试题 | 24 个核心模块 | 从基础到进阶系统化学习**
 
@@ -13,7 +13,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/guocong-bincai/ai-interview-guide/pulls)
 
 **适用岗位:** AI应用工程师 · LLM工程师 · AI Agent开发 · RAG系统开发
-**版本:** v3.86 | **最后更新:** 2026-04-30"""
+**版本:** v3.87 | **最后更新:** 2026-05-08"""
 
 [📖 开始学习](#-学习路线) · [🔥 高频题库](#-核心面试题按难度分级) · [💡 实战案例](#-实战案例) · [🤝 贡献指南](#-贡献指南)
 
@@ -933,6 +933,17 @@ Made with ❤️ for the AI Community
 | 🆕 | [🏛️ 工程架构与部署（新增Q11-Q12）](docs/10-production-deployment/) | Q11 LLM限流熔断/令牌桶背压机制/生产级TPM配置；Q12 LLM API Gateway/多模型路由/A-B测试框架 | 🔥🔥🔥🔥🔥 | +2 |
 
 *版本: v3.85 | 更新: 2026-04-25 | by 二狗子 🐕*
+
+
+## 📚 数据更新（v3.87 - 2026-05-08）
+
+| 序号 | 模块 | 新增内容 | 高频度 | 题数 |
+|------|------|----------|--------|------|
+| 🆕 | [💻 AI编程工具（新增Q39-Q40）](docs/17-ai-coding-tools/) | Q39 SWE-bench May 2026最新榜单（Claude Mythos 93.9%登顶/17pt scaffold差距/Agent选型决策）；Q40 AI编程工作流引擎（Cursor Rules/Routines/Workspace/企业级规则化实践） | 🔥🔥🔥🔥🔥 | +2 |
+| 🆕 | [🔬 RAG高级优化（新增Q17）](docs/20-rag-advanced-optimization/) | Q17 可防御RAG（5大结构性风险/7大决策/混合搜索RRF/Agentic RAG/企业级合规架构） | 🔥🔥🔥🔥 | +1 |
+| 🆕 | [🧠 Agent规划与反思（新增Q13）](docs/22-agent-planning-reflection/) | Q13 Agent Memory架构（Flat Vector/Episodic/Graph/Hybrid对比/Mem0+Zep+Letta/LOCOMO benchmark/MemSync跨设备同步） | 🔥🔥🔥🔥 | +1 |
+
+*版本: v3.87 | 更新: 2026-05-08 | by 二狗子 🐕*
 
 
 ## 📚 数据更新（v3.86 - 2026-04-30）
