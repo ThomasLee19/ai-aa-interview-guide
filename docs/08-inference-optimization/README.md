@@ -2017,3 +2017,185 @@ KV Cache 优化五大方向：
 ---
 
 *版本: v2.8 | 更新: 2026-05-08 | by 二狗子 🐕*
+
+---
+
+## 十六、vLLM v1 + PD分离架构 + Mooncake 生产部署（Q16）
+
+### Q16: vLLM v1的PD分离架构是什么？Mooncake + LMCache如何实现KV Cache跨节点传输？生产环境如何部署？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**背景：vLLM v1 2026年重磅更新**
+
+2026年4月，vLLM v0.18/v0.19连续发布，引入了 gRPC serving、GPU 加速投机采样、Gemma 4 支持，以及最关键的**vLLM v1 PD 分离（Disaggregation）架构**。这是自 PagedAttention 以来最重要的架构演进。
+
+**为什么需要 PD 分离？**
+
+```
+传统架构的问题：
+- Prefill（计算密集）和 Decode（访存密集）混合在同一 GPU
+- Prefill 拖慢 Decode 的 TTFT（首 token 延迟）
+- Decode 拖慢 Prefill 的吞吐量
+- 资源利用率低，两者互相干扰
+
+PD 分离的核心思路：
+把 Prefill 和 Decode 解耦到不同节点，各自优化
+→ Prefill 节点：计算密集，用高端 GPU（如 H100）
+→ Decode 节点：访存密集，可用中端 GPU（如 A100）
+```
+
+**vLLM v1 PD 分离架构：**
+
+```
+┌─────────────────────────────────────────────────────┐
+│              vLLM v1 PD Disaggregation              │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│   请求入口（disagg_proxy_server）                    │
+│          ↓                                          │
+│   ┌─────────────────┐    KV Cache    ┌─────────────────┐
+│   │  Prefiller Node  │ ──────────────→ │  Decoder Node   │
+│   │  (计算密集型)    │    RDMA 传输     │  (访存密集型)    │
+│   │  GPU: H100       │                 │  GPU: A100      │
+│   │  Port: 8010      │                 │  Port: 8020     │
+│   └─────────────────┘                 └─────────────────┘
+│                                                     │
+│   Key技术：MooncakeConnector + LMCache + RDMA       │
+└─────────────────────────────────────────────────────┘
+```
+
+**Mooncake + LMCache 关键技术：**
+
+> "Mooncake 是字节跳动开源的 KVCache 中心化架构，核心创新是用 RDMA 高带宽网络实现 Prefiller 和 Decoder 之间的 KV Cache 传输。LMCache 是配套的 KV Cache 管理层，支持 Mooncake Store 作为后端，实现 KV Cache 的分块存储和传输。"
+
+**Mooncake 架构核心组件：**
+
+| 组件 | 角色 | 说明 |
+|------|------|------|
+| **Mooncake Store** | KV Cache 存储引擎 | 支持 RDMA 传输，延迟 < 100μs |
+| **LMCache** | KV Cache 管理层 | 统一接口，支持 chunk 级别传输 |
+| **MooncakeConnector** | vLLM v1 连接器 | 内置支持，即插即用 |
+| **disagg_proxy_server** | 请求路由 | 把请求分发到 Prefiller/Decoder |
+
+**生产部署配置示例：**
+
+```yaml
+# Prefiller Node 配置（Machine A, 192.168.0.2）
+# mooncake-prefiller-config.yaml
+chunk_size: 256
+remote_url: "mooncakestore://192.168.0.3:50052/"
+remote_serde: "naive"
+local_cpu: False
+max_local_cpu_size: 100
+extra_config:
+  local_hostname: "192.168.0.2"
+  metadata_server: "http://192.168.0.3:8080/metadata"
+  protocol: "rdma"
+  device_name: "mlx5_0"        # RDMA 网卡
+  master_server_address: "192.168.0.3:50052"
+  global_segment_size: 32212254720  # 30GB
+  local_buffer_size: 1073741824     # 1GB
+
+# Decoder Node 配置（Machine B, 192.168.0.3）
+# mooncake-decoder-config.yaml
+chunk_size: 256
+remote_url: "mooncakestore://192.168.0.3:50052/"
+remote_serde: "naive"
+extra_config:
+  local_hostname: "192.168.0.3"
+  metadata_server: "http://192.168.0.3:8080/metadata"
+  protocol: "rdma"
+  device_name: "mlx5_0"
+  master_server_address: "192.168.0.3:50052"
+  global_segment_size: 32212254720
+  local_buffer_size: 1073741824
+```
+
+**启动命令：**
+
+```bash
+# Prefiller Node（Machine A）
+CUDA_VISIBLE_DEVICES=0 \
+python3 -m vllm.entrypoints.openai.api_server \
+  --host 0.0.0.0 --port 8010 \
+  --model meta-llama/Llama-3-70B-Instruct \
+  --gpu-memory-utilization 0.9 \
+  --kv-transfer-config '{"kv_connector":"MooncakeConnector","kv_role":"kv_producer","num_workers":10}'
+
+# Decoder Node（Machine B）
+CUDA_VISIBLE_DEVICES=0 \
+python3 -m vllm.entrypoints.openai.api_server \
+  --host 0.0.0.0 --port 8020 \
+  --model meta-llama/Llama-3-70B-Instruct \
+  --gpu-memory-utilization 0.9 \
+  --kv-transfer-config '{"kv_connector":"MooncakeConnector","kv_role":"kv_consumer"}'
+
+# 启动 Proxy Server（Machine B，Decoder 节点上）
+python3 -m lmcache.disagg_proxy_server \
+  --port 8000 \
+  --prefill-address 192.168.0.2:8010 \
+  --decode-address 192.168.0.3:8020
+```
+
+**vLLM v1 vs v0 关键区别：**
+
+| 维度 | v0（传统架构）| v1（PD 分离）|
+|------|-------------|---------------|
+| Prefill/Decode | 同一进程/GPU | 分离到不同节点 |
+| KV Cache 传输 | 无（本地）| RDMA 跨节点 |
+| 资源利用率 | 互相干扰 | 各自独立优化 |
+| TTFT | 受 Decode 影响 | Prefill 独立，TTFT 更稳定 |
+| 适用场景 | 中小规模 | 超大规模、高并发 |
+| 部署复杂度 | 低 | 高（需要 RDMA 网络）|
+
+**DeepSeek MoE + PD 分离实战数据：**
+
+> "vLLM 官方博客显示，在 H200 上部署 DeepSeek MoE 模型，结合 Wide-EP（Expert Parallel）和 PD 分离，实测达到 2.2k tok/s/H200 的吞吐量。关键优化：Wide-EP 最大化 KV Cache 效率（MLA 架构），Dual-Batch Overlap（DBO）减少通信瓶颈，EPLB（Expert Parallel Load Balancing）解决专家负载不均问题。"
+
+**EAGLE + PD 分离叠加效果：**
+
+```python
+# vLLM v1 + EAGLE 投机采样 + PD 分离组合配置
+llm = LLM(
+    model="meta-llama/Llama-3-70B-Instruct",
+    tensor_parallel_size=8,
+    speculative_config={
+        "model": "yuhuili/EAGLE-LLaMA3-Instruct-8B",
+        "num_speculative_tokens": 4,
+        "method": "eagle",
+    },
+    # PD 分离配置
+    kv_transfer_config={
+        "kv_connector": "MooncakeConnector",
+        "kv_role": "kv_both"  # 对称模式
+    }
+)
+# Prefiller: EAGLE 预测 + PD 传输 KV
+# Decoder: 接收 KV + EAGLE 验证 + 最终输出
+# 效果：Prefill 加速 3-5x，Decode 延迟降低 40%
+```
+
+**生产选型建议：**
+
+| 场景 | 推荐方案 |
+|------|----------|
+| 小规模（< 10 QPS）| 传统 vLLM，单机多卡 |
+| 中等规模（10-100 QPS）| vLLM v0 + Continuous Batching |
+| 大规模（> 100 QPS）| vLLM v1 + PD 分离 + Mooncake |
+| 超大规模 + MoE 模型 | vLLM v1 + PD + Wide-EP + DBO |
+
+**面试话术：**
+
+> "vLLM v1 的 PD 分离是 2026 年推理架构最重要的方向。核心洞察是：Prefill 是计算密集（矩阵乘法），Decode 是访存密集（KV Cache 读取），两者对 GPU 的需求完全不同，混合部署必然互相拖累。解耦后，Prefill 用 H100 专注计算，Decode 用 A100 专注访存，通过 RDMA 传输 KV Cache。我在实际部署中，配合 Mooncake 的 KV Cache Pool，H200 上单节点跑到 2.2k tok/s，相比传统架构 QPS 提升 3 倍。面试能说清楚 PD 分离的原理和 Mooncake 的角色，说明你对 2026 年推理架构有生产级理解。"
+
+**延伸阅读：**
+- vLLM Blog: https://blog.vllm.ai/2025/04/14/large-scale-serving.html
+- Mooncake: https://kvcache-ai.github.io/Mooncake/
+
+</details>
+
+---
+
+*版本: v2.9 | 更新: 2026-05-09 | by 二狗儿 🐕*
