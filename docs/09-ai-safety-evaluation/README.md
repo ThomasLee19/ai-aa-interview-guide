@@ -2967,3 +2967,184 @@ AI 读取图片 → 解析像素中的隐写信息 → 执行指令
 ---
 
 *版本: v3.1 | 更新: 2026-05-09 | by 二狗子 🐕*
+
+---
+
+## 二十一、2026年 Agent 评估平台对比：Braintrust vs DeepEval vs Weave vs Langfuse vs Arize（Q20）
+
+### Q20: 如何选择 Agent 评估平台？Braintrust、DeepEval、Weave、Langfuse、Arize 各有什么适用场景？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**2026 Agent 评估平台格局：**
+
+```
+┌─────────────────────────────────────────────────────┐
+│         2026 Agent 评估平台生态图                   │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  开源框架（Code-first）                              │
+│  ├─ DeepEval：Pytest-style，本地 CI                 │
+│  ├─ Promptfoo：安全测试 + LLM 评估                  │
+│  └─ UpTrain：开源，RAG/Agent 评估                    │
+│                                                     │
+│  托管平台（Production）                             │
+│  ├─ Braintrust：全生命周期，团队协作               │
+│  ├─ LangSmith：LangChain 原生，Multi-turn 强        │
+│  ├─ Weave：W&B 生态，生产级 tracing                 │
+│  ├─ Langfuse：开源可自托管，成长型团队              │
+│  └─ Arize Phoenix：ML/LLM 可观测性                  │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**DeepEval（Braintrust 开源替代）：**
+
+> "DeepEval 是 Confident AI 开发的开源评估框架，设计理念是'Pytest for LLM'——让评估像单元测试一样在 CI 里跑。它的优势是快速、本地化，缺点是缺少托管功能（协作界面、生产监控）。"
+
+| 特性 | 说明 |
+|------|------|
+| **设计哲学** | 测试驱动，CI 友好 |
+| **核心指标 | 幻觉率、 faithfulness、answer quality |
+| **适用场景 | 代码优先团队，GitHub Actions CI |
+| **优点 | 快速、便宜、本地 |
+| **缺点 | 无托管界面，团队协作弱 |
+
+```python
+# DeepEval 示例：像 Pytest 一样评估 RAG
+import deepeval
+from deepeval.metrics import FaithfulnessMetric, AnswerRelevancyMetric
+
+@deepeval.test
+def test_rag_faithfulness():
+    metric = FaithfulnessMetric(threshold=0.8)
+    result = evaluate(
+        input="What did the company achieve in 2024?",
+        actual_output="The company grew revenue 40%...",
+        context=["2024: revenue grew 40%", "2024: expanded to 30 countries"]
+    )
+    assert metric.measure() > 0.8
+```
+
+**Braintrust（DeepEval 商业版 + 全生命周期）：**
+
+> "Braintrust 是 DeepEval 的商业版，解决了开源框架'只管本地执行，不管生产监控'的问题。它覆盖评估的定义 → 执行 → 监控 → 发布全流程，是 2026 年企业级 Agent 评估的事实标准。"
+
+| 特性 | 说明 |
+|------|------|
+| **设计哲学** | 全生命周期，团队协作 |
+| **核心能力 | 评估定义 + 自动化执行 + 生产监控 + Release门禁 |
+| **适用场景 | 中大型团队，跨职能协作 |
+| **优点 | 全生命周期、托管、团队协作 |
+| **缺点 | 收费（$75/mo 起），成本高 |
+| **评分方式 | 领域专家定义标准，非工程师也能参与 |
+
+```python
+# Braintrust：领域专家定义评估标准（无需工程师）
+from braintrust import Span
+
+# 领域专家通过 UI 定义标准，工程师只需调用 API
+Span.update({
+    "quality_score": evaluate_response_quality(response),
+    "safety_score": evaluate_safety(response),
+    "business_metric": evaluate_business_impact(response)
+})
+```
+
+**Weave（W&B 生产级 tracing）：**
+
+> "Weave 是 Weights & Biases 的 LLM 评估组件，适合已经在用 W&B 的团队。它的核心优势是生产级 tracing + 本地评分器，缺点是与 W&B 强绑定。"
+
+| 特性 | 说明 |
+|------|------|
+| **设计哲学** | 生产级 tracing + 实验跟踪 |
+| **核心能力 | 步骤级 tracing、多模型对比、成本监控 |
+| **适用场景 | 已有 W&B 团队、需要端到端可观测性 |
+| **优点 | 与 W&B 生态集成、生产级稳定性 |
+| **缺点 | 平台锁定、学习曲线 |
+| **价格 | $60/mo |
+
+**Langfuse（开源可自托管）：**
+
+> "Langfuse 是 2026 年成长最快的开源 LLM 可观测性平台，核心优势是'可自托管'——数据不出境，适合合规要求严格的团队。相比 LangSmith，价格更低，适合 10-50 人团队。"
+
+| 特性 | 说明 |
+|------|------|
+| **设计哲学** | 开源可自托管，成本可控 |
+| **核心能力 | Tracing、Prompt 管理、评估、数据集 |
+| **适用场景 | 中小型团队、合规要求高 |
+| **优点 | 自托管、数据主权、社区活跃 |
+| **缺点 | 功能比 LangSmith 少 |
+| **价格 | 开源免费，SaaS $29/mo |
+
+**LangSmith（LangChain 原生）：**
+
+> "LangSmith 是 LangChain 官方平台，2026 年对 LangGraph 的支持最深度——multi-turn tracing、step-level 评分、human-in-the-loop 集成都是原生支持。如果你用 LangGraph，选 LangSmith 是最顺的选择。"
+
+| 特性 | 说明 |
+|------|------|
+| **设计哲学** | LangGraph 原生，多轮 Agent 评估 |
+| **核心能力 | Multi-turn tracing、step-level 评分、Dataset + Playground |
+| **适用场景 | LangGraph 用户、多轮 Agent 系统 |
+| **优点 | LangGraph 集成最深、多 Agent 评估强 |
+| **缺点 | 只支持 LangChain/LangGraph |
+| **价格 | $39/seat/mo |
+
+**评估平台选型决策树：**
+
+```
+团队规模？
+├── 小团队（< 5人）→ DeepEval（开源免费）
+└── 中大团队（> 5人）→
+    ├── 技术栈：LangGraph？
+    │   ├── 是 → LangSmith（原生集成）
+    │   └── 否 →
+    │       ├── 合规要求高（数据不出境）？
+    │       │   ├── 是 → Langfuse（自托管）
+    │       │   └── 否 →
+    │       │       ├── 需要全生命周期？
+    │       │       │   ├── 是 → Braintrust
+    │       │       │   └── 否 →
+    │       │       │       ├── 已有 W&B？
+    │       │       │       │   ├── 是 → Weave
+    │       │       │       │   └── 否 → Langfuse
+```
+
+**2026年 Agent 评估最佳实践：**
+
+```
+1. 分层评估：
+   - 单元测试：DeepEval（本地方便，CI 集成）
+   - 集成测试：Langfuse（团队协作，数据管理）
+   - 生产监控：Braintrust / LangSmith（Release 门禁）
+
+2. 评估驱动开发（Eval-Driven Development）：
+   - 先定义"成功"的定义（评估标准）
+   - 开发 → 跑评估 → 迭代
+   - 避免"做完再测"的返工
+
+3. 领域专家参与评估：
+   - 工程师定义指标，领域专家定义标准
+   - Braintrust 的 no-code interface 让非工程师也能定义标准
+
+4. 持续监控：
+   - 每次部署前跑评估套件
+   - 生产环境持续采样监控
+   - 分数下降立即告警
+```
+
+**面试话术：**
+
+> "2026 年 Agent 评估已经从'单点工具'变成'全生命周期平台'。选型的核心判断是：团队规模、技术栈、合规要求。小团队用 DeepEval 省成本；LangGraph 用户用 LangSmith；合规要求高用 Langfuse 自托管；中大团队需要全生命周期用 Braintrust。我的经验是'分层评估'——本地用 DeepEval 快速迭代，CI 用 Langfuse 团队协作，生产用 Braintrust 做 Release 门禁。面试能说清楚各平台适用场景，说明你对 2026 年 LLMOps 有系统理解，不是只会调一个工具。"
+
+**延伸阅读：**
+- Braintrust: https://www.braintrust.dev
+- DeepEval: https://github.com/confident-ai/deepeval
+- Langfuse: https://langfuse.com
+
+</details>
+
+---
+
+*版本: v3.2 | 更新: 2026-05-09 | by 二狗子 🐕*
