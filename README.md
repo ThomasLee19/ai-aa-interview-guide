@@ -2,7 +2,7 @@
 
 # 🚀 AI 应用开发工程师面试宝典
 
-> **⚠️ 本次更新(v3.99)：新增 24-Python工程基础模块(Q1-Q7) + 25-AI系统设计(Q1-Q5)**
+> **⚠️ 本次更新(v3.100)：新增 24-Python工程基础模块(Q1-Q7) + 25-AI系统设计(Q1-Q5)**
 
 **🎯 385+ 道高频面试题 | 24 个核心模块 | 从基础到进阶系统化学习**
 
@@ -13,7 +13,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/guocong-bincai/ai-interview-guide/pulls)
 
 **适用岗位:** AI应用工程师 · LLM工程师 · AI Agent开发 · RAG系统开发
-**版本:** v3.99 | **最后更新:** 2026-05-09"""
+**版本:** v3.100 | **最后更新:** 2026-05-09"""
 
 [📖 开始学习](#-学习路线) · [🔥 高频题库](#-核心面试题按难度分级) · [💡 实战案例](#-实战案例) · [🤝 贡献指南](#-贡献指南)
 
@@ -379,7 +379,7 @@ ai-interview-guide/
 | Q6 | 如何用 pytest + Mock 测试一个 LLM 应用？ | ⭐⭐⭐ |
 | Q7 | Python 内存管理与 AI 应用的 OOM 问题如何排查？ | ⭐⭐⭐⭐ |
 
-#### 📌 25-system-design-ai — AI 场景系统设计 ✅ 部分实现
+#### 📌 25-system-design-ai — AI 场景系统设计 ✅ 已实现
 > 大厂二面/三面必考，v3.99 已实现 Q1（百万DAU客服），Q2-Q5 待补充
 
 | # | 题目 | 难度 |
