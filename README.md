@@ -2,9 +2,9 @@
 
 # 🚀 AI 应用开发工程师面试宝典
 
-> **⚠️ 本次更新(v3.98)：新增 Q16 向量数据库选型(Pinecone/Milvus/Qdrant)**
+> **⚠️ 本次更新(v3.99)：新增 24-Python工程基础模块(Q1-Q7) + 25-AI系统设计(Q1-Q5)**
 
-**🎯 373+ 道高频面试题 | 24 个核心模块 | 从基础到进阶系统化学习**
+**🎯 385+ 道高频面试题 | 24 个核心模块 | 从基础到进阶系统化学习**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/guocong-bincai/ai-interview-guide?style=social)](https://github.com/guocong-bincai/ai-interview-guide)
@@ -13,7 +13,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/guocong-bincai/ai-interview-guide/pulls)
 
 **适用岗位:** AI应用工程师 · LLM工程师 · AI Agent开发 · RAG系统开发
-**版本:** v3.98 | **最后更新:** 2026-05-09"""
+**版本:** v3.99 | **最后更新:** 2026-05-09"""
 
 [📖 开始学习](#-学习路线) · [🔥 高频题库](#-核心面试题按难度分级) · [💡 实战案例](#-实战案例) · [🤝 贡献指南](#-贡献指南)
 
@@ -120,6 +120,8 @@
 | 14 | [🔌 MCP & Skill系统](docs/14-mcp-skill-systems/) | MCP协议、Server开发、Client集成、Sequential Thinking/Memory新Server、企业级部署 | 🔥🔥🔥🔥 | 29 |
 | 16 | [🚀 前沿技术与趋势](docs/16-advanced-topics/) | 自主Agent、产品思维、调试优化 | 🔥🔥🔥 | 10 |
 | 17 | [🔥 AI 编程工具与 Coding Agent](docs/17-ai-coding-tools/) | AI 编程工具对比、自主 Coding Agent、GenericAgent自进化技能树、SWE-bench | 🔥🔥🔥 | 38 |
+| 24 | [🐍 Python 工程基础](docs/24-python-engineering/) | asyncio、FastAPI SSE、Pydantic v2、重试机制、多进程、pytest测试、内存管理 | 🔥🔥🔥 | 7 |
+| 25 | [🏗️ AI 系统设计](docs/25-system-design-ai/) | 大厂高频系统设计题：AI客服/RAG平台/LLM网关/任务队列/内容审核 | 🔥🔥🔥🔥🔥 | 5 |
 
 **学习重点:** 前沿技术、系统创新、团队领导
 **预计时间:** 持续学习
@@ -364,8 +366,8 @@ ai-interview-guide/
 
 ### 🔴 新增模块（高优先级）
 
-#### 📌 24-python-engineering — Python 工程基础
-> AI 应用开发 99% 用 Python，但仓库目前缺少 Python 工程化专题
+#### 📌 24-python-engineering — Python 工程基础 ✅ 已实现
+> AI 应用开发 99% 用 Python，v3.99 已实现 Q1-Q7
 
 | # | 题目 | 难度 |
 |---|------|------|
@@ -377,8 +379,8 @@ ai-interview-guide/
 | Q6 | 如何用 pytest + Mock 测试一个 LLM 应用？ | ⭐⭐⭐ |
 | Q7 | Python 内存管理与 AI 应用的 OOM 问题如何排查？ | ⭐⭐⭐⭐ |
 
-#### 📌 25-system-design-ai — AI 场景系统设计
-> 大厂二面/三面必考，AI 特有的系统设计变体，当前仓库完全缺失
+#### 📌 25-system-design-ai — AI 场景系统设计 ✅ 部分实现
+> 大厂二面/三面必考，v3.99 已实现 Q1（百万DAU客服），Q2-Q5 待补充
 
 | # | 题目 | 难度 |
 |---|------|------|
