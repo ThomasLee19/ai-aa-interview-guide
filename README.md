@@ -2,7 +2,7 @@
 
 # 🚀 AI 应用开发工程师面试宝典
 
-> **⚠️ 本次更新(v3.101)：新增 Agent可观测性新锐平台(Q10-Q11) + 多模态GUI Agent(Q15-Q16)**
+> **⚠️ 本次更新(v3.102)：新增 Agent框架选型指南(Q16) + 开源Agent平台n8n/Dify/Coze对比(Q16)**
 
 **🎯 385+ 道高频面试题 | 24 个核心模块 | 从基础到进阶系统化学习**
 
@@ -13,7 +13,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/guocong-bincai/ai-interview-guide/pulls)
 
 **适用岗位:** AI应用工程师 · LLM工程师 · AI Agent开发 · RAG系统开发
-**版本:** v3.101 | **最后更新:** 2026-05-11"""
+**版本:** v3.102 | **最后更新:** 2026-05-11"""
 
 [📖 开始学习](#-学习路线) · [🔥 高频题库](#-核心面试题按难度分级) · [💡 实战案例](#-实战案例) · [🤝 贡献指南](#-贡献指南)
 
