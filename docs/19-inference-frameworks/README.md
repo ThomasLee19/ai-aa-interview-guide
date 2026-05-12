@@ -1388,4 +1388,93 @@ llm = LLM(
 
 ---
 
-*版本: v2.8 | 更新: 2026-05-08 | by 二狗子 🐕*
+## 二十七、SGLang 三大 RCE 漏洞（CVE-2026-3059/3060/3989）：Pickle 反序列化危机（Q27）
+
+### Q27: 什么是 SGLang 的 CVE-2026-3059/3060/3989？Pickle 反序列化为何是 AI 基础设施的定时炸弹？
+
+**背景：**
+
+2026年3月，Orca Security 在 SGLang 推理框架中发现三个严重的未认证 RCE（远程代码执行）漏洞，由不安全的 Python `pickle.loads()` 反序列化引起，已分配 CVE-2026-3059、CVE-2026-3060、CVE-2026-3989。
+
+**三个漏洞对比：**
+
+| CVE | 组件 | 影响 | CVSS |
+|-----|------|------|------|
+| **CVE-2026-3059** | SGLang 多模态生成（multimodal generation） | 未认证 RCE | 10.0（严重）|
+| **CVE-2026-3060** | SGLang 编码器并行分解（encoder parallel disaggregation） | 未认证 RCE | 9.9（严重）|
+| **CVE-2026-3989** | SGLang 崩溃转储重放工具（crash dump replay） | 不安全反序列化 | 高危 |
+
+**受影响版本：** SGLang v0.5.5 ~ v0.5.9（v0.5.10+ 已修复）
+
+**技术根因：**
+
+SGLang 的多模态生成和分解服务模块在接收网络数据时，直接使用 `pickle.loads()` 反序列化未验证的字节流。Python 的 pickle 协议支持将任意对象序列化，包括可执行代码的对象。当攻击者发送精心构造的 pickle payload 时，反序列化过程会自动执行其中的 `__reduce__()` 等钩子，导致 RCE。
+
+```python
+# 漏洞代码示意（简化）
+# 出问题在 encode_receiver.py 中：
+import pickle
+
+# 从网络接收未验证数据
+raw_data = receive_from_network()  # 攻击者可控制
+
+# 直接反序列化——漏洞！
+obj = pickle.loads(raw_data)  # RCE!
+
+# 攻击者构造的 pickle payload 示例（原理）
+# import pickle, subprocess, base64
+# class Exploit:
+#     def __reduce__(self):
+#         return (subprocess.Popen, (base64.b64decode(...),))
+# pickle.dumps(Exploit())  # 发送此 payload → 远程命令执行
+```
+
+**攻击链：**
+
+```
+1. 攻击者发现 SGLang 多模态/分解服务暴露在网络上
+2. 发送恶意 pickle payload 到 :
+   - 多模态端口（3059）
+   - 编码器分解端口（3060）
+3. SGLang 服务端 pickle.loads() 执行恶意代码
+4. 获得服务器完全控制权 → 窃取模型权重、植入后门、数据泄露
+```
+
+**修复方案：**
+
+| 措施 | 说明 |
+|------|------|
+| **升级 SGLang** | 升级到 v0.5.10+（使用安全反序列化）|
+| **网络隔离** | 多模态/分解服务不暴露公网，仅内网通信 |
+| **禁用不安全协议** | 除非必要，关闭 encoder disaggregation 网络端口 |
+| **使用安全序列化** | 替换 pickle → JSON/MessagePack/FlatBuffers |
+| **WAF 防护** | 在入口层过滤异常 pickle 流量 |
+
+**为什么 Pickle 反序列化是 AI 基础设施的定时炸弹：**
+
+1. **AI 框架大量使用 pickle**：模型序列化、数据并行、Checkpoint 都用 pickle
+2. **网络化趋势**：SGLang/vLLM 的分解服务、多模态服务默认支持网络通信
+3. **认证缺失**：多数框架假设内网可信，未做网络层认证
+4. **利用门槛低**：不需要认证，直接网络发送 payload 即可 RCE
+
+**攻击面示意（SGLang Disaggregation 架构）：**
+
+```
+[前端] --pkl 数据--> [Encode Receiver] --pickle.loads()--> [执行推理]
+                              ↑
+                    攻击者直接发恶意 pickle
+```
+
+**面试话术：**
+
+> "SGLang 在 2026 年 3 月爆了三个 RCE 漏洞，都是 pickle 反序列化引起的。CVE-2026-3060 在编码器分解模块，任何能访问该端口的人可以直接 RCE 服务器。这个问题的本质是：AI 框架为了性能优化大量使用 pickle（模型加载、分布式传递），但 pickle 本身不安全——它可以执行任意代码。防御原则是'永远不用 pickle 反序列化网络数据'，应该用 JSON、MessagePack 或 FlatBuffers。我在部署推理服务时，会用 network policy 限制端口访问，分解服务走 mTLS 内网通信，不用默认端口。生产环境用 vLLM 的时候也要注意类似问题——比如 prefill/decode disaggregation 也涉及网络传输。这些安全问题在 2026 年已经成为 AI 基础设施的标配考点，面试能说清 CVE-2026-3060 的原理和修复方案，说明你对推理框架安全有实战理解。"
+
+**延伸阅读：**
+
+- Orca Security 报告：https://orca.security/resources/blog/sglang-llm-framework-rce-vulnerabilities/
+- SGLang v0.5.10 Release：https://github.com/sgl-project/sglang/releases/tag/v0.5.10
+- NVD CVE-2026-3060：https://nvd.nist.gov/vuln/detail/CVE-2026-3060
+
+---
+
+*版本: v2.9 | 更新: 2026-05-12 | by 二狗子 🐕*
