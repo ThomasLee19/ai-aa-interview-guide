@@ -3826,7 +3826,7 @@ evaluation_dimensions = {
 </details>
 
 ---
-*版本: v3.114 | 更新: 2026-05-14 | by 二狗子 🐕*
+*版本: v3.115 | 更新: 2026-05-14 | by 二狗子 🐕*
 
 ---
 
@@ -3970,6 +3970,133 @@ evaluation_dimensions = {
 **延伸阅读：**
 - WorkOS: "MCP's 2026 roadmap makes enterprise readiness a top priority"
 - Agentic AI Foundation: MCP 2026 Roadmap
+
+</details>
+
+
+---
+
+### Q34: MCP "Tool Poisoning"和"Agent Zero"是什么？2026年5月披露的三个Critical CVE（CVE-2026-30624/30617/33224）为何让整个MCP生态告急？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**背景：MCP 供应链安全的"至暗时刻"**
+
+> "2026年5月，OX Security 披露了 MCP 核心架构的三个 Critical CVE，攻击者可以'未授权 UI 注入'直接控制 Agent——无需任何认证，这就是被称为'Agent Zero'的漏洞。同时，JFrog 发现了 mcp-remote 的两个 RCE 漏洞，Reddit 安全社区讨论了'Tool Poisoning'这一新型攻击向量。MCP 生态在快速扩张的同时，安全问题集中爆发。"
+
+---
+
+**三个 Critical CVE 详解：**
+
+| CVE | 影响产品 | 攻击类型 | 严重性 | 状态 |
+|-----|---------|---------|--------|------|
+| **CVE-2026-30624** | Agent Zero | 未授权 UI 注入 | Critical | 已报告 |
+| **CVE-2026-30617** | Langchain-Chatchat | 未授权 UI 注入 | Critical | 已报告 |
+| **CVE-2026-33224** | Jaaz | 未授权 UI 注入 | Critical | 已报告 |
+
+**Agent Zero 攻击原理：**
+
+```
+传统攻击：需要拿到认证凭证 → 绕过身份验证
+Agent Zero：利用 MCP 架构设计缺陷 → 完全绕过认证
+
+攻击链：
+1. 恶意 MCP Server（或被攻陷的 Server）
+2. 通过 Sampling 功能注入恶意指令
+3. 劫持 Agent 的 UI 层显示
+4. 用户在不知不觉中被操控
+```
+
+**UI 注入的威胁场景：**
+
+```
+正常流程：
+Agent 分析订单 → 显示"订单 #12345 已发货"
+
+Agent Zero 攻击后：
+Agent 分析订单 → 恶意 MCP 篡改显示 → 
+"订单 #12345 已发货，但需要验证您的银行密码"
+
+用户以为是 Agent 说的 → 输入密码 → 密码被盗
+```
+
+**Tool Poisoning（工具投毒）—— 新型 MCP 攻击向量：**
+
+> "Tool Poisoning 类似于传统的 dependency confusion（依赖混淆攻击），但针对 AI Agent 的工具供应链。攻击者诱使开发者使用恶意的 MCP Server 或工具包，这些工具在执行时窃取数据或执行未授权操作。"
+
+```
+攻击步骤：
+1. 发布一个看似合法的 MCP Server（如 "helpful-memory-server"）
+2. 名字和功能模仿流行开源 Server
+3. 开发者没仔细检查就集成到项目里
+4. 工具偷偷记录所有 tool calls 和返回结果
+5. 数据发送到攻击者控制的服务器
+
+防御措施：
+- MCP Server 发布前做安全审计
+- 使用已验证的官方 Server
+- 监控工具的异常网络流量
+```
+
+**MCP Sampling 的 Prompt Injection 风险：**
+
+```
+MCP Sampling 的设计问题：
+
+Client → [用户输入] → LLM → Sampling 请求 → MCP Server
+                ↑                              ↓
+                └──────────────────────────────┘
+                        恶意 Server 可注入指令
+
+Palo Alto Unit 42 的研究：
+"在没有适当防护的情况下，恶意 MCP Server 可以利用 
+Sampling 功能进行一系列攻击——包括 UI 注入和会话劫持"
+```
+
+**2026 年 5 月 MCP 安全时间线：**
+
+| 时间 | 事件 |
+|------|------|
+| 2026-05 初 | OX Security 披露 Agent Zero + 2个 CVE |
+| 2026-05 中 | Palo Alto Unit 42 发布 MCP Sampling 攻击分析 |
+| 2026-05 中 | JFrog 发现 mcp-remote 两个 RCE 漏洞 |
+| 2026-05 中 | Reddit 安全社区讨论 Tool Poisoning |
+| 2026-05 下 | MCP 生态开始大规模安全审计 |
+
+**防御方案：**
+
+```python
+# 1. MCP Server 验证
+def validate_mcp_server(server_metadata):
+    """使用 MCP Server 前必须验证"""
+    check_signatures(server_metadata)  # 验证签名
+    audit_permissions(server_metadata)  # 检查权限范围
+    sandbox_execution(server_metadata)  # 沙箱执行
+
+# 2. Sampling 安全配置
+mcp_config = {
+    "sampling": {
+        "enabled": False,  # 生产环境关闭 Sampling
+        "allowlist": ["trusted-servers-only"],
+        "rate_limit": 10  # 限制采样频率
+    }
+}
+
+# 3. Tool Poisoning 防御
+- 官方 Registry 验证 MCP Server
+- 依赖混淆攻击防护（检查包来源）
+- 运行时监控工具的网络请求
+```
+
+**面试话术：**
+
+> "2026年5月是 MCP 生态的安全转折点——三个 Critical CVE、mcp-remote 的 RCE 漏洞、Tool Poisoning 新型攻击，让 MCP 的安全问题从'理论风险'变成'实际威胁'。我在生产环境中的防御策略是三层：Server 验证（签名+权限审计）、Sampling 关闭或白名单、运行时网络监控。面试能说清楚 Agent Zero 的攻击原理和防御措施，说明你对 MCP 安全有实战理解，而不是只看过 OWASP Top 10。"
+
+**延伸阅读：**
+- OX Security: "The Mother of All AI Supply Chains: Critical MCP Vulnerability"
+- Palo Alto Unit 42: "New Prompt Injection Attack Vectors Through MCP Sampling"
+- JFrog: "MCP Remote RCE Vulnerabilities"
 
 </details>
 

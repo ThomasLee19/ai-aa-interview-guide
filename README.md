@@ -2,7 +2,7 @@
 
 # 🚀 AI 应用开发工程师面试宝典
 
-> **⚠️ 本次更新(v3.116)：新增 微软Semantic Kernel RCE漏洞(Q23) + CVE-2026-26030/25592**
+> **⚠️ 本次更新(v3.117)：新增 微软Semantic Kernel RCE漏洞(Q23) + CVE-2026-26030/25592**
 
 **🎯 385+ 道高频面试题 | 24 个核心模块 | 从基础到进阶系统化学习**
 
@@ -13,7 +13,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/guocong-bincai/ai-interview-guide/pulls)
 
 **适用岗位:** AI应用工程师 · LLM工程师 · AI Agent开发 · RAG系统开发
-**版本:** v3.116 | **最后更新:** 2026-05-14"""
+**版本:** v3.117 | **最后更新:** 2026-05-14"""
 
 [📖 开始学习](#-学习路线) · [🔥 高频题库](#-核心面试题按难度分级) · [💡 实战案例](#-实战案例) · [🤝 贡献指南](#-贡献指南)
 
@@ -1047,26 +1047,26 @@ Made with ❤️ for the AI Community
 
 *版本: v3.83 | 更新: 2026-04-24 | by 二狗子 🐕*
 
-## 📚 数据更新（v3.116 - 2026-05-14）
+## 📚 数据更新（v3.117 - 2026-05-14）
 
 | 序号 | 模块 | 新增内容 | 高频度 | 题数 |
 |------|------|----------|--------|------|
 | 🆕 | [🔌 MCP协议与工具（新增Q33）](docs/14-mcp-skill-systems/) | Q33 MCP 2026企业级Readiness四大缺口（Audit Trails/SSO/Gateway/Config Portability）、四大产品对比、生产级部署检查清单 | 🔥🔥🔥🔥 | +1 |
 
-*版本: v3.116 | 更新: 2026-05-14 | by 二狗子 🐕*
+*版本: v3.117 | 更新: 2026-05-14 | by 二狗子 🐕*
 
 
-## 📚 数据更新（v3.116 - 2026-05-14）
+## 📚 数据更新（v3.117 - 2026-05-14）
 
 | 序号 | 模块 | 新增内容 | 高频度 | 题数 |
 |------|------|----------|--------|------|
 | 🆕 | [🔌 MCP协议与工具（新增Q33）](docs/14-mcp-skill-systems/) | Q33 MCP 2026企业级Readiness四大缺口（Audit Trails/SSO/Gateway/Config Portability）、四大产品对比、生产级部署检查清单 | 🔥🔥🔥🔥 | +1 |
 | 🆕 | [🧠 Agent规划与反思（新增Q14）](docs/22-agent-planning-reflection/) | Q14 ExACT测试时计算扩展（R-MCTS蒙特卡洛树搜索/Exploratory Learning/Best-of-N vs Beam Search vs Sequential Revision对比） | 🔥🔥🔥🔥 | +1 |
 
-*版本: v3.116 | 更新: 2026-05-14 | by 二狗子 🐕*
+*版本: v3.117 | 更新: 2026-05-14 | by 二狗子 🐕*
 
 
-## 📚 数据更新（v3.116 - 2026-05-14）
+## 📚 数据更新（v3.117 - 2026-05-14）
 
 | 序号 | 模块 | 新增内容 | 高频度 | 题数 |
 |------|------|----------|--------|------|
@@ -1074,5 +1074,14 @@ Made with ❤️ for the AI Community
 | 🆕 | [🧠 Agent规划与反思（新增Q14）](docs/22-agent-planning-reflection/) | Q14 ExACT测试时计算扩展（R-MCTS蒙特卡洛树搜索/Exploratory Learning/Best-of-N vs Beam Search vs Sequential Revision对比） | 🔥🔥🔥🔥 | +1 |
 | 🆕 | [⚡ 推理优化（新增Q17）](docs/08-inference-optimization/) | Q17 Continuous Batching + Chunked Prefill（迭代级批处理/分段预填充/vLLM 0.5生产配置/GPU利用率90%提升） | 🔥🔥🔥🔥🔥 | +1 |
 
-*版本: v3.116 | 更新: 2026-05-14 | by 二狗子 🐕*
+*版本: v3.117 | 更新: 2026-05-14 | by 二狗子 🐕*
+
+
+## 📚 数据更新（v3.117 - 2026-05-14）
+
+| 序号 | 模块 | 新增内容 | 高频度 | 题数 |
+|------|------|----------|--------|------|
+| 🆕 | [🔌 MCP协议与工具（新增Q34）](docs/14-mcp-skill-systems/) | Q34 Agent Zero(CVE-2026-30624/30617/33224) + Tool Poisoning + MCP Sampling Prompt Injection + 2026年5月安全时间线 + 三层防御方案 | 🔥🔥🔥🔥🔥 | +1 |
+
+*版本: v3.117 | 更新: 2026-05-14 | by 二狗子 🐕*
 
