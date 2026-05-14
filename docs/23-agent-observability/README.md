@@ -984,3 +984,539 @@ ReAct Loop中的状态管理问题：
 > "Agent可观测性和传统LLM监控的本质区别是'看树还是看森林'。传统监控看你一次API调用正不正常，Agent可观测性看整个任务执行链。2026年我踩过的坑是：Agent在Step 3失败，但根因在Step 1的搜索结果质量差，导致后续步骤都在错误基础上做决策。这种问题只看单次API完全发现不了。生产级Agent可观测性必须做到：采集全轨迹、分析工具选择质量、检测状态一致性、在异常时能重建整个执行链。"
 
 </details>
+
+### Q12: OpenTelemetry 在 Agent 系统中的完整接入实战
+
+<details>
+<summary>💡 答案要点</summary>
+
+**为什么 Agent 需要 OpenTelemetry？**
+
+```
+传统监控：单次 API 调用（输入 → 输出）
+Agent 监控：多步骤轨迹链（Thought → Action → Observation → ... → Final）
+
+OpenTelemetry = 统一采集 + 跨服务追踪 + 上下文传播
+```
+
+**架构图：**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    OpenTelemetry Agent 接入架构              │
+├─────────────────────────────────────────────────────────────┤
+│  1. Trace 采集（跨 Agent 链路追踪）                          │
+│     ├── traceparent header 传递（TraceID/SpanID）           │
+│     ├── 每个 Tool 调用 = 一个 Span                           │
+│     └── 父Span → 子Span 自动关联                            │
+│                                                              │
+│  2. Metrics 采集（指标监控）                                 │
+│     ├── token_consumption_total（累计 Token 消耗）           │
+│     ├── tool_call_duration_seconds（工具调用延迟）           │
+│     ├── step_count_per_task（每任务步数分布）                │
+│     └── agent_retry_count（重试次数分布）                    │
+│                                                              │
+│  3. Logs 采集（结构化日志）                                  │
+│     ├── trace_id 关联（同一请求的所有日志）                   │
+│     ├── span_id（定位到具体步骤）                            │
+│     └── attributes（tool_name、model、temperature 等）        │
+│                                                              │
+│  4. Baggage 传播（跨服务上下文）                              │
+│     ├── user_id、session_id、feature_flags                  │
+│     └── 在所有 Span 间自动传递                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**最小接入实现：**
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.trace import Status, StatusCode
+
+# 1. 初始化 Provider
+provider = TracerProvider()
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://collector:4317"))
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
+
+tracer = trace.get_tracer(__name__)
+
+# 2. 用装饰器自动追踪 Agent 步骤
+class OpenTelemetryAgent:
+    def __init__(self, name: str):
+        self.name = name
+        self.tracer = tracer
+    
+    async def run(self, task: str, tools: list):
+        with self.tracer.start_as_current_span(
+            f"agent.{self.name}.run",
+            attributes={"task": task, "tool_count": len(tools)}
+        ) as span:
+            try:
+                context = span.get_span_context()
+                
+                for step_idx, (thought, action, obs) in enumerate(self.reasoning_loop(task)):
+                    with self.tracer.start_as_current_span(
+                        f"agent.step.{step_idx}",
+                        kind=trace.SpanKind.CLIENT,
+                        attributes={
+                            "step.thought": thought,
+                            "step.action": action,
+                            "step.observation": str(obs)[:200]
+                        }
+                    ) as step_span:
+                        step_span.set_attribute("step.index", step_idx)
+                        step_span.set_attribute(
+                            "llm.token_usage", 
+                            obs.get("token_count", 0) if isinstance(obs, dict) else 0
+                        )
+                        if "error" in obs:
+                            step_span.set_status(Status(StatusCode.ERROR, obs["error"]))
+                
+                span.set_status(Status(StatusCode.OK))
+                return final_result
+                
+            except Exception as e:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
+
+# 3. 自动注入 trace_id 到工具调用
+def call_tool_with_trace(tool_name: str, tool_args: dict, parent_span):
+    with tracer.start_as_current_span(
+        f"tool.{tool_name}",
+        context=parent_span.get_span_context()
+    ) as tool_span:
+        tool_span.set_attribute("tool.name", tool_name)
+        tool_span.set_attribute("tool.args", str(tool_args))
+        result = tool_execute(tool_name, tool_args)
+        tool_span.set_attribute("tool.result_type", type(result).__name__)
+        return result
+```
+
+**关键配置（docker-compose）：**
+
+```yaml
+# otel-collector.yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+  jaeger:
+    endpoint: http://jaeger:14250
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+```
+
+**面试话术：**
+> "我在生产环境中用 OpenTelemetry 做 Agent 可观测性，核心是三点：① 每个 Tool 调用是一个 Span，父Span自动关联子Span，能看清整个轨迹；② token消耗、步数、重试次数都入库，可以做成本分析和异常检测；③ trace_id 在所有日志里，打通了日志和链路。最实用的经验是用装饰器包装Agent的run方法，零侵入接入，不用改业务代码。"
+
+</details>
+
+### Q13: Grafana Dashboard 设计：Agent 监控面板关键指标
+
+<details>
+<summary>💡 答案要点</summary>
+
+**Agent 监控 Dashboard 设计原则：**
+
+```
+传统微服务 Dashboard：CPU / 内存 / QPS / 延迟
+Agent Dashboard：任务完成率 / 步数分布 / Token 成本 / 工具调用质量
+```
+
+**四象限 Dashboard 布局：**
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                   Agent 生产监控 Dashboard                       │
+├──────────────────────┬──────────────────────────────────────────┤
+│   【业务健康度】      │   【成本分析】                           │
+│   任务完成率: 94.2%  │   Token消耗: $1,247/日                   │
+│   异常率: 5.8%       │   平均单次成本: $0.023                    │
+│   用户满意度: 4.6/5  │   成本趋势: 📈 (+12% vs 上周)            │
+├──────────────────────┼──────────────────────────────────────────┤
+│   【Agent 行为分析】  │   【系统性能】                           │
+│   平均步数: 4.3      │   P50延迟: 1.2s                          │
+│   步数分布: [2,3,4,5]│   P99延迟: 4.8s                          │
+│   最常用工具: search │   吞吐量: 850 QPS                        │
+│   工具失败率: 2.1%   │   GPU利用率: 67%                         │
+└──────────────────────┴──────────────────────────────────────────┘
+```
+
+**核心 Panel 配置（PromQL）：**
+
+```yaml
+# 1. 任务完成率 Panel
+- title: 任务完成率
+  expr: |
+    sum(rate(agent_task_completed_total[5m])) 
+    / 
+    sum(rate(agent_task_started_total[5m])) * 100
+  legend: 完成率 %
+  thresholds:
+    - value: 90
+      color: red
+    - value: 95
+      color: yellow
+    - value: 98
+      color: green
+
+# 2. Token 成本趋势 Panel
+- title: 日Token消耗趋势
+  expr: |
+    sum(increase(agent_token_usage_total[1d])) by (model)
+  legend: "{{model}}"
+  type: area
+
+# 3. 步数分布 Panel（发现异常长轨迹）
+- title: 任务步数分布
+  expr: |
+    histogram_quantile(0.95, 
+      sum(rate(agent_steps_per_task_bucket[5m])) by (le)
+    )
+  legend: P95步数
+
+# 4. 工具调用质量 Panel
+- title: 工具调用成功率
+  expr: |
+    sum(rate(agent_tool_call_success_total[5m])) by (tool_name)
+    / 
+    sum(rate(agent_tool_call_total[5m])) by (tool_name) * 100
+  legend: "{{tool_name}}: {{value}}%"
+```
+
+**告警规则（alerting_rules.yaml）：**
+
+```yaml
+groups:
+  - name: agent_alerts
+    rules:
+      # 任务完成率低于 85%
+      - alert: AgentTaskCompletionRateLow
+        expr: |
+          sum(rate(agent_task_completed_total[5m])) 
+          / sum(rate(agent_task_started_total[5m])) < 0.85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agent任务完成率过低"
+          description: "当前完成率 {{ $value | humanizePercentage }}，持续5分钟"
+
+      # Token消耗超阈值（日预算$2000，超$1800告警）
+      - alert: AgentCostBudgetExceeded
+        expr: |
+          sum(increase(agent_token_usage_total[1h])) * 24 > 1800
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent日成本可能超预算"
+          description: "预计日成本 ${{ $value }}，超过$1800阈值"
+
+      # 异常长轨迹（步数>10）
+      - alert: AgentTrajectoryTooLong
+        expr: |
+          sum(rate(agent_steps_over_threshold_total[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent异常长轨迹增多"
+          description: "5分钟内发现 {{ $value }} 个超长轨迹(>10步)"
+```
+
+**面试话术：**
+> "我的Agent Dashboard按四象限设计：业务健康度（完成率/满意度）、成本分析（Token消耗/趋势）、Agent行为（步数分布/工具质量）、系统性能（延迟/吞吐）。告警规则我设置了三档：warning（完成率<95%）、critical（<85%）、cost alert（预计日成本超预算）。实际运营中发现步数分布最能预警问题——当P95步数突然从5升到8，说明检索质量下降了，需要查向量数据库。"
+
+</details>
+
+### Q14: 多 Agent 系统的分布式追踪：TraceID 传递与关联
+
+<details>
+<summary>💡 答案要点</summary>
+
+**核心挑战：**
+
+```
+单 Agent：TraceID 在单个进程内传递
+多 Agent：TraceID 跨越多个进程/服务，需要手动传播
+
+问题：Agent A 调用 Agent B，trace_id 断了吗？
+```
+
+**传播机制对比：**
+
+| 方式 | 原理 | 适用场景 | 局限性 |
+|------|------|----------|--------|
+| **HTTP Header** | traceparent 自动传播 | HTTP 调用 | 需要所有服务支持 OTEL |
+| **消息队列** | 手动注入 baggage | 异步消息 | 需要修改消息格式 |
+| **共享内存** | Redis 存储上下文 | 同机器多进程 | 延迟增加 |
+| **数据库** | Task 表存储 trace_id | 持久化任务 | 需要事务支持 |
+
+**生产级实现（HTTP + 消息队列双模式）：**
+
+```python
+from opentelemetry import propagate, trace
+from opentelemetry.propagate import inject, extract
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+class MultiAgentTracer:
+    def __init__(self):
+        self.propagator = TraceContextTextMapPropagator()
+    
+    # 模式1：HTTP 调用（自动传播）
+    async def call_agent_http(self, agent_name: str, task: dict, url: str):
+        headers = {}
+        inject(headers)  # 自动从当前 context 注入 traceparent
+        
+        response = await httpx.AsyncClient().post(
+            url,
+            json=task,
+            headers={**headers, "X-Agent-Name": agent_name}
+        )
+        
+        span_context = extract(response.headers).get(
+            trace_span_context_key, None
+        )
+        return response.json()
+    
+    # 模式2：消息队列调用（手动传播）
+    async def call_agent_mq(self, agent_name: str, task: dict, mq_client):
+        current_span = trace.get_current_span()
+        span_context = current_span.get_span_context()
+        
+        traceparent = f"00-{span_context.trace_id:032x}-{span_context.span_id:016x}-01"
+        
+        message = {
+            **task,
+            "_trace_context": {
+                "traceparent": traceparent,
+                "tracestate": current_span.get_span_context().trace_state,
+                "agent_name": agent_name,
+                "parent_span_id": span_context.span_id
+            }
+        }
+        
+        await mq_client.publish(
+            exchange="agent_exchange",
+            routing_key=agent_name,
+            body=json.dumps(message)
+        )
+
+# 跨 Agent 轨迹聚合查询
+async def get_full_trace(task_id: str):
+    """获取同一任务的所有 Agent 轨迹"""
+    trace_id = await redis.hget(f"task:{task_id}", "trace_id")
+    
+    spans = await jaeger_client.query(
+        service=["agent-orchestrator", "agent-search", "agent-executor"],
+        trace_id=trace_id
+    )
+    
+    return sorted(spans, key=lambda s: s.start_time)
+```
+
+**数据库 Schema 设计：**
+
+```sql
+-- 任务表存储 trace_id 关联
+CREATE TABLE agent_tasks (
+    id UUID PRIMARY KEY,
+    trace_id VARCHAR(64) NOT NULL,
+    parent_span_id VARCHAR(32) NOT NULL,
+    status VARCHAR(20),
+    created_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    INDEX idx_trace_id (trace_id),
+    INDEX idx_status (status)
+);
+
+-- 子 Agent 任务关联表
+CREATE TABLE agent_task_children (
+    parent_task_id UUID REFERENCES agent_tasks(id),
+    child_agent_name VARCHAR(50),
+    child_trace_id VARCHAR(64),
+    child_span_id VARCHAR(32),
+    status VARCHAR(20),
+    PRIMARY KEY (parent_task_id, child_agent_name)
+);
+```
+
+**面试话术：**
+> "多Agent追踪的核心是trace_id的传播方式。HTTP调用自动传播（OTel标准），消息队列需要手动注入traceparent到消息体。生产中我用过两种模式：同步HTTP用自动传播，异步MQ用手工传播（把traceparent放消息头）。每个任务在数据库存trace_id，调试时用Jaeger按trace_id查询，能看到OrchestratorAgent→SearchAgent→ExecutorAgent的完整时序。"
+
+</details>
+
+### Q15: 生产环境 Agent 成本超支告警：预算控制最佳实践
+
+<details>
+<summary>💡 答案要点</summary>
+
+**Agent 成本构成：**
+
+```
+总成本 = Token成本 + API调用次数成本 + 计算资源成本
+
+Token成本 = Σ(输入Token数 × 单价) + Σ(输出Token数 × 单价)
+```
+
+**预算控制四层架构：**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              Agent 成本控制四层架构                       │
+├─────────────────────────────────────────────────────────┤
+│  Layer 1: 每日预算硬限制（最后防线）                      │
+│  ├── 日预算 $200，超 $200 自动熔断                        │
+│  ├── 按 Agent 拆分预算（Orchestrator: $80, Worker: $120）│
+│  └── 余额不足时拒绝新任务，排队等待                       │
+├─────────────────────────────────────────────────────────┤
+│  Layer 2: 实时告警（提前发现问题）                        │
+│  ├── 预计日成本 > 80% 阈值 → warning                     │
+│  ├── 预计日成本 > 100% 阈值 → critical                    │
+│  └── Token消耗速率异常（突增 > 3x）→ 立即告警             │
+├─────────────────────────────────────────────────────────┤
+│  Layer 3: 成本优化（主动降本）                            │
+│  ├── 模型降级：GPT-4 → GPT-3.5（简单任务）               │
+│  ├── 缓存命中：相同问题直接返回（省 100%）                │
+│  ├── 步数限制：> 10步强制结束（防死循环）                  │
+│  └── Prompt压缩：LLMLingua 减少 30% token                │
+├─────────────────────────────────────────────────────────┤
+│  Layer 4: 成本归因（搞清楚钱花在哪）                      │
+│  ├── 按 Agent 类型归因（SearchAgent 消耗最多）            │
+│  ├── 按用户归因（Top 10 用户占 60% 成本）                │
+│  └── 按任务类型归因（多跳问答比简单问答贵 5x）             │
+└─────────────────────────────────────────────────────────┘
+```
+
+**实现代码：**
+
+```python
+from datetime import datetime, timedelta
+from collections import defaultdict
+import asyncio
+
+class AgentBudgetController:
+    def __init__(
+        self,
+        daily_budget_usd: float = 200.0,
+        warning_threshold: float = 0.8
+    ):
+        self.daily_budget = daily_budget_usd
+        self.warning_threshold = warning_threshold
+        self.spent_today = 0.0
+        self.agent_budgets = {
+            "orchestrator": daily_budget_usd * 0.4,
+            "search": daily_budget_usd * 0.3,
+            "executor": daily_budget_usd * 0.3
+        }
+        self.alerted_agents = set()
+    
+    async def check_budget(self, agent_name: str, task_cost: float):
+        """每次 Agent 调用前检查预算"""
+        remaining = self.agent_budgets.get(agent_name, 0) - self.spent_today
+        
+        # Layer 1: 硬限制
+        if self.spent_today + task_cost > self.daily_budget:
+            raise BudgetExceededError(
+                f"日预算已超，当前${self.spent_today:.2f}，剩余${self.daily_budget - self.spent_today:.2f}"
+            )
+        
+        # Layer 2: 实时告警
+        cost_rate = self.spent_today / (datetime.now().hour + 1)
+        projected_daily = cost_rate * 24
+        
+        if projected_daily > self.daily_budget * self.warning_threshold:
+            if agent_name not in self.alerted_agents:
+                await self.send_alert(
+                    agent_name=agent_name,
+                    severity="warning",
+                    message=f"预计日成本${projected_daily:.2f}，超过{self.warning_threshold*100}%阈值"
+                )
+                self.alerted_agents.add(agent_name)
+    
+    async def record_cost(
+        self,
+        agent_name: str,
+        input_tokens: int,
+        output_tokens: int,
+        model: str
+    ):
+        """记录成本并更新预算"""
+        cost = self.calculate_cost(input_tokens, output_tokens, model)
+        self.spent_today += cost
+        
+        cost_gauge.labels(
+            agent=agent_name,
+            model=model,
+            date=datetime.now().strftime("%Y-%m-%d")
+        ).inc(cost)
+    
+    def calculate_cost(self, input_tok: int, output_tok: int, model: str) -> float:
+        pricing = {
+            "gpt-4o": (0.005, 0.015),
+            "gpt-3.5-turbo": (0.0005, 0.0015),
+            "claude-3-opus": (0.015, 0.075)
+        }
+        in_price, out_price = pricing.get(model, (0.0, 0.0))
+        return (input_tok / 1000 * in_price) + (output_tok / 1000 * out_price)
+    
+    async def send_alert(self, agent_name: str, severity: str, message: str):
+        await pagerduty.create_incident(
+            title=f"Agent成本告警: {agent_name}",
+            severity=severity,
+            body=message
+        )
+```
+
+**成本归因 Dashboard：**
+
+```yaml
+# Grafana Panel: Agent成本归因
+- title: 成本按Agent分布
+  expr: |
+    sum(increase(agent_cost_total{date="2026-05-15"}[1d])) by (agent_name)
+  type: pie
+
+- title: 成本按用户分布（Top 10）
+  expr: |
+    topk(10, sum(increase(agent_cost_total[1d])) by (user_id))
+  type: table
+
+- title: 成本按任务类型分布
+  expr: |
+    sum(increase(agent_cost_total[1d])) by (task_type)
+    / sum(increase(agent_cost_total[1d])) * 100
+  legend: "{{task_type}}: {{value}}%"
+```
+
+**面试话术：**
+> "我的Agent成本控制用四层架构：①日预算硬限制，超$200熔断；②实时告警，预计超80%阈值就发warning；③成本优化，缓存+步数限制+模型降级；④成本归因，搞清楚钱花在哪。我曾在生产中遇到Token消耗突然增加3倍，排查发现是某个用户的查询没有缓存导致每次都走GPT-4，加了缓存后日成本从$180降到$95。成本监控和告警是Agent生产的生命线。"
+
+</details>
+

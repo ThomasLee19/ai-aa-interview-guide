@@ -2,7 +2,7 @@
 
 # 🚀 AI 应用开发工程师面试宝典
 
-> **⚠️ 本次更新(v3.120)：新增 Q9-Q13 简历面试五连（STAR法则量化/无经验回答/AI取代程序员/白板编程/失败技术决策）**
+> **⚠️ 本次更新(v3.121)：新增 Q12-Q15 Agent可观测性四连(OpenTelemetry/Grafana/TraceID传递/成本告警)**
 
 **🎯 385+ 道高频面试题 | 24 个核心模块 | 从基础到进阶系统化学习**
 
@@ -13,7 +13,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/guocong-bincai/ai-interview-guide/pulls)
 
 **适用岗位:** AI应用工程师 · LLM工程师 · AI Agent开发 · RAG系统开发
-**版本:** v3.120 | **最后更新:** 2026-05-15"""
+**版本:** v3.121 | **最后更新:** 2026-05-15"""
 
 [📖 开始学习](#-学习路线) · [🔥 高频题库](#-核心面试题按难度分级) · [💡 实战案例](#-实战案例) · [🤝 贡献指南](#-贡献指南)
 
@@ -1046,6 +1046,16 @@ Made with ❤️ for the AI Community
 | 🆕 | [🛠️ 框架与工具（新增Q12）](docs/12-frameworks-tools/) | Q12 DSPy声明式LLM编程（斯坦福/Compiler自动优化Prompt/ vs 传统Prompt工程/2026范式转变/生产实践） | 🔥🔥🔥🔥 | +1 |
 
 *版本: v3.83 | 更新: 2026-04-24 | by 二狗子 🐕*
+
+## 📚 数据更新（v3.121 - 2026-05-15）
+
+| 序号 | 模块 | 新增内容 | 高频度 | 题数 |
+|------|------|----------|--------|------|
+| 🆕 | [🔥 Agent可观测性（新增Q12-Q15）](docs/23-agent-observability/) | Q12 OpenTelemetry完整接入实战(装饰器/Collector配置)；Q13 Grafana四象限Dashboard设计(PromQL/告警规则)；Q14 多Agent分布式追踪(traceparent传播/HTTP+MQ双模式)；Q15 Agent成本超支告警(预算控制四层架构/成本归因Dashboard) | 🔥🔥🔥 | +4 |
+
+*版本: v3.121 | 更新: 2026-05-15 | by 二狗子 🐕*
+
+---
 
 ## 📚 数据更新（v3.120 - 2026-05-15）
 
