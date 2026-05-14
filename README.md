@@ -397,24 +397,24 @@ ai-interview-guide/
 #### 📌 01-basic-concepts（+2 题）
 | # | 待补充题目 |
 |---|-----------|
-| Q17 | KV Cache 是什么？在推理优化中的核心作用？（基础概念层面） |
-| Q18 | 什么是 RLHF？和 DPO 的区别是什么？（入门级对比） |
+| Q17 | KV Cache 是什么？在推理优化中的核心作用？（基础概念层面） | ⭐⭐ 待补充 |
+| Q18 | 什么是 RLHF？和 DPO 的区别是什么？（入门级对比） | ⭐⭐ 待补充 |
 
-#### 📌 02-prompt-engineering（+3 题）
+#### 📌 02-prompt-engineering（+3 题）✅ 已实现
 | # | 待补充题目 |
 |---|-----------|
-| Q13 | Structured Outputs / JSON Mode 是什么？和 Function Calling 的区别？ |
-| Q14 | ReAct Prompting 的局限是什么？工程实践中如何规避？ |
-| Q15 | 如何写 System Prompt 让 Agent 更稳定？必须包含哪些要素？ |
+| Q13 | Structured Outputs / JSON Mode 是什么？和 Function Calling 的区别？ | ✅ 已实现（v3.119）|
+| Q14 | ReAct Prompting 的局限是什么？工程实践中如何规避？ | ✅ 已实现（v3.119）|
+| Q15 | 如何写 System Prompt 让 Agent 更稳定？必须包含哪些要素？ | ✅ 已实现（v3.119）|
 
-#### 📌 16-resume-interview-tips（+5 题）
+#### 📌 16-resume-interview-tips（+5 题）✅ 已实现
 | # | 待补充题目 |
 |---|-----------|
-| Q9 | 如何用 STAR 法则量化描述 RAG 系统项目？（含模板） |
-| Q10 | 被问"没有 AI 项目经验怎么办"，如何回答？ |
-| Q11 | 技术总监面：如何回答"AI 未来会取代程序员吗"？ |
-| Q12 | 如何准备白板编程题？（AI 应用工程师版本） |
-| Q13 | 行为面试高频题：说说你最失败的一个技术决策？ |
+| Q9 | 如何用 STAR 法则量化描述 RAG 系统项目？（含模板） | ✅ 已实现（v3.120）|
+| Q10 | 被问"没有 AI 项目经验怎么办"，如何回答？ | ✅ 已实现（v3.120）|
+| Q11 | 技术总监面：如何回答"AI 未来会取代程序员吗"？ | ✅ 已实现（v3.120）|
+| Q12 | 如何准备白板编程题？（AI 应用工程师版本） | ✅ 已实现（v3.120）|
+| Q13 | 行为面试高频题：说说你最失败的一个技术决策？ | ✅ 已实现（v3.120）|
 
 #### 📌 18-big-tech-interview-questions（+6 题）
 | # | 待补充题目 |
@@ -426,15 +426,15 @@ ai-interview-guide/
 | 字节 Q7 | TikTok 内容理解 AI 架构设计思路 |
 | 字节 Q8 | 模型监控体系搭建：指标设计与告警策略 |
 
-#### 📌 23-agent-observability（+6 题）
+#### 📌 23-agent-observability（+6 题）✅ 已实现 Q10-Q15
 | # | 待补充题目 |
 |---|-----------|
-| Q10 | OpenTelemetry 在 Agent 系统中的完整接入实战 |
-| Q11 | Grafana Dashboard 设计：Agent 监控面板关键指标 |
-| Q12 | SLA 违约复盘模板：从告警到根因分析的完整流程 |
-| Q13 | Agent 日志结构化设计：如何让日志可搜索、可分析？ |
-| Q14 | 多 Agent 系统的分布式追踪：TraceID 传递与关联 |
-| Q15 | 生产环境 Agent 成本超支告警：预算控制最佳实践 |
+| Q10 | OpenTelemetry 在 Agent 系统中的完整接入实战 | ✅ 已实现（Q12）|
+| Q11 | Grafana Dashboard 设计：Agent 监控面板关键指标 | ✅ 已实现（Q13）|
+| Q12 | SLA 违约复盘模板：从告警到根因分析的完整流程 | ⭐⭐⭐⭐ 待补充 |
+| Q13 | Agent 日志结构化设计：如何让日志可搜索、可分析？ | ⭐⭐⭐ 待补充 |
+| Q14 | 多 Agent 系统的分布式追踪：TraceID 传递与关联 | ✅ 已实现（Q14）|
+| Q15 | 生产环境 Agent 成本超支告警：预算控制最佳实践 | ✅ 已实现（Q15）|
 
 ---
 
