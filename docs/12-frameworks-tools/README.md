@@ -1719,7 +1719,7 @@ class MedicalRAG(dspy.Module):
     def __init__(self):
         self.retrieve = dspy.Retrieve(k=3)
         self.generate_answer = dspy.ChainOfThought(MedicalRAGSignature)
-    
+
     def forward(self, question):
         context = self.retrieve(question)
         return self.generate_answer(context=context, question=question)
@@ -2231,10 +2231,10 @@ result = workflow.invoke(
 if result["needs_human_approval"]:
     # 推送通知给人类
     send_human_review_request(result)
-    
+
     # 等待人类响应（通过 API 轮询或 webhook）
     human_decision = wait_for_human()
-    
+
     if human_decision == "approve":
         workflow.continue_(config)
     elif human_decision == "reject":
@@ -2572,3 +2572,115 @@ result = agent.run_sync("分析季度销售数据")
 | AutoGen | 工具支持 | 内置GroupChat（类似A2A） |
 
 </details>
+
+---
+
+### Q14: 为什么选 Go+Eino 做 AI 平台，而不是 Python+LangChain？如何做技术栈选型？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**考察核心：** Go 转 AI 方向标志性必考题。面试官考察的不是"哪个更好"，而是你对技术栈选型的决策逻辑和业务理解。
+
+**高分答题核心：没有最好的技术，只有最适合场景的技术。**
+
+**一、业务背景先定调**
+
+```
+ToB 企业级服务的核心诉求：
+- 高并发（多租户同时请求）
+- 低延迟（P99 < 200ms）
+- 稳定可运维（7×24 小时）
+- 成本可控（Go 内存占用低）
+```
+
+**二、Go vs Python 四维对比**
+
+| 维度 | Go | Python |
+|------|----|--------|
+| **并发性能** | 原生 goroutine，高并发轻量 | GIL 限制，依赖 asyncio/多进程 |
+| **工程化稳定性** | 静态类型，编译期发现错误 | 动态类型，运行期才报错 |
+| **部署运维** | 单二进制，容器镜像小 | 依赖复杂，镜像动辄 GB |
+| **团队技术栈** | Go 团队转型成本低 | 需招募 Python 工程师 |
+
+**实测数据：**
+> 同等并发量下，Go 服务内存占用约为 Python 方案的 1/3，Pod 数量减少一半，基础设施成本节省 40%。
+
+**三、Eino vs LangChain 三维对比**
+
+| 维度 | Eino（字节跳动开源） | LangChain（Python） |
+|------|---------------------|---------------------|
+| **技术栈适配** | 原生 Go，类型安全 | Python 生态，Go 无官方版 |
+| **工程化设计** | 组件接口强类型，接入规范清晰 | 灵活但约束少，大项目难维护 |
+| **性能** | 无 Python 运行时开销 | 受 GIL/Python 解释器影响 |
+
+**Eino 核心架构（面试可画图）：**
+
+```
+┌─────────────────────────────────────────────┐
+│              Eino 架构                        │
+├─────────────────────────────────────────────┤
+│  Component（组件层）                          │
+│  - ChatModel：LLM 调用抽象                   │
+│  - Retriever：检索器抽象                      │
+│  - Tool：工具调用抽象                         │
+├─────────────────────────────────────────────┤
+│  Compose（编排层）                            │
+│  - Chain：线性链路编排                        │
+│  - Graph：有向图 / 带循环的 Agent 工作流       │
+├─────────────────────────────────────────────┤
+│  Flow（流程层）                               │
+│  - 并发分支、条件路由、流式输出               │
+└─────────────────────────────────────────────┘
+```
+
+**Eino 代码示例（RAG Chain）：**
+
+```go
+import (
+    "github.com/cloudwego/eino/compose"
+    "github.com/cloudwego/eino/components/model"
+    "github.com/cloudwego/eino/components/retriever"
+)
+
+// 构建 RAG Chain：检索 + 生成
+func buildRAGChain(ctx context.Context) (*compose.Chain, error) {
+    chain := compose.NewChain[string, string]()
+
+    chain.
+        AppendRetriever(retriever).   // 检索相关文档
+        AppendChatTemplate(tpl).      // 填充 Prompt 模板
+        AppendChatModel(chatModel).   // 调用大模型
+        AppendOutputParser(parser)    // 解析输出
+
+    return chain.Compile(ctx)
+}
+
+// 执行
+result, err := compiledChain.Invoke(ctx, "什么是混合检索？")
+```
+
+**四、不是完全不用 Python**
+
+```
+核心链路（高并发、稳定性）  → Go + Eino
+算法实验、模型微调           → Python + LangChain
+Embedding 服务               → Python FastAPI（独立微服务）
+```
+
+> 两种语言各司其职，不是非此即彼，而是"在合适的地方用合适的工具"。
+
+**五、面试加分细节**
+
+1. **承认 Python 的价值**：LangChain 生态更成熟，算法迭代快，不要否定它
+2. **结合数据说话**：Go 并发处理 1000 QPS，Python 方案需要 3 倍 Pod
+3. **说清 Eino 选型依据**：字节系技术，CloudWeGo 开源生态，Go 原生类型安全
+
+**面试话术：**
+> "我选 Go+Eino 的核心原因是业务场景——ToB 企业级服务，高并发和稳定性是红线。Go 的 goroutine 天然适合处理多租户并发请求，内存占用只有 Python 的三分之一；Eino 是字节跳动 CloudWeGo 开源的 Go AI 框架，组件接口类型安全，编排灵活，不像 LangChain 那样运行时才暴露错误。当然 Python+LangChain 也有它的价值——算法实验和模型微调我们还是用 Python，两种语言分工，不是谁更好的问题，是谁更适合这个场景的问题。"
+
+</details>
+
+---
+
+*版本: v3.128 | 更新: 2026-07-02 | 补充 Go+Eino vs Python+LangChain 技术选型*

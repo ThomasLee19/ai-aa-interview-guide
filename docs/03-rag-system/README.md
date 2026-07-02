@@ -1357,26 +1357,26 @@ class SemanticCache:
         self.cache = []  # [(embedding, question, answer, timestamp)]
         self.threshold = threshold
         self.ttl = ttl
-    
+
     def get(self, question, embedding):
         # 1. 向量检索
         scores = [cosine(e1, embedding) for e1, _, _, _ in self.cache]
-        
+
         # 2. 找最佳匹配
         if not scores:
             return None
-        
+
         best_idx = np.argmax(scores)
         best_score = scores[best_idx]
-        
+
         # 3. 检查阈值和 TTL
         if best_score >= self.threshold:
             _, _, answer, timestamp = self.cache[best_idx]
             if time.time() - timestamp < self.ttl:
                 return answer
-        
+
         return None
-    
+
     def set(self, question, embedding, answer):
         # 检查缓存大小，超限时淘汰最旧的
         if len(self.cache) > 10000:
@@ -1482,7 +1482,7 @@ with Trace("rag-retrieval") as trace:
     chunks = retriever.get_chunks(query)
     trace.set_attribute("num_chunks", len(chunks))
     trace.set_attribute("avg_chunk_score", np.mean([c.score for c in chunks]))
-    
+
 with Trace("rag-generation") as trace:
     answer = generator.generate(query, chunks)
     trace.set_attribute("prompt_tokens", answer.usage.prompt_tokens)
@@ -1509,7 +1509,7 @@ groups:
       severity: warning
     annotations:
       summary: "RAG 召回率低于 75%"
-      
+
   - alert: RAGGeneratonHallucination
     expr: faithfulness < 0.6
     for: 2m
@@ -1517,7 +1517,7 @@ groups:
       severity: critical
     annotations:
       summary: "RAG 幻觉率过高"
-      
+
   - alert: RAGLatencyHigh
     expr: histogram_quantile(0.99, rag_latency) > 5
     for: 3m
@@ -1534,3 +1534,443 @@ groups:
 ---
 
 *版本: v1.13 | 更新: 2026-05-09 | by 二狗子 🐕*
+
+---
+
+## 🆕 补充高频题（2025-2026 全网最新）
+
+---
+
+### Q13: 什么是多模态 RAG？如何实现图文混合检索？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**多模态 RAG = 知识库包含文本、图片、图表、PDF 等多种形式，检索时能跨模态理解**
+
+**为什么需要多模态 RAG？**
+
+```
+传统 RAG 问题：
+  用户问："图5中的架构图里 API Gateway 连接了哪些服务？"
+  → 文本检索找不到"图5"的内容，因为图片没有文字
+  → 只能靠文档里的文字描述，不完整
+
+多模态 RAG：
+  → 直接理解图片内容，回答关于图表、流程图的问题
+```
+
+**三种实现方案：**
+
+**方案一：图片 → 文本（OCR/Caption）→ 文本 RAG**
+
+```python
+import base64
+from openai import OpenAI
+
+class ImageToTextRAG:
+    def __init__(self):
+        self.client = OpenAI()
+
+    def image_to_caption(self, image_path: str) -> str:
+        """用 GPT-4o 把图片转成详细的文字描述"""
+        with open(image_path, "rb") as f:
+            image_data = base64.b64encode(f.read()).decode("utf-8")
+
+        response = self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
+                    },
+                    {
+                        "type": "text",
+                        "text": """详细描述这张图片，包括：
+1. 图表类型（架构图/流程图/柱状图等）
+2. 所有文字标签、节点名称
+3. 连接关系和数据走向
+4. 关键数据和结论
+格式要详尽，方便后续文本检索"""
+                    }
+                ]
+            }]
+        )
+        return response.choices[0].message.content
+
+    def index_document_with_images(self, pdf_path: str):
+        """处理含图片的 PDF，图文一起索引"""
+        # 提取文本
+        text_chunks = extract_text_chunks(pdf_path)
+        # 提取图片并生成描述
+        images = extract_images_from_pdf(pdf_path)
+        image_captions = [
+            {
+                "content": self.image_to_caption(img["path"]),
+                "metadata": {
+                    "source": pdf_path,
+                    "page": img["page"],
+                    "type": "image_caption",
+                    "original_image": img["path"]
+                }
+            }
+            for img in images
+        ]
+        # 一起向量化入库
+        all_chunks = text_chunks + image_captions
+        vector_store.add_documents(all_chunks)
+```
+
+**方案二：ColPali（原生多模态向量检索）**
+
+```python
+# ColPali = 把 PDF 页面直接转成向量，不需要 OCR
+# 论文："ColPali: Efficient Document Retrieval with Vision Language Models"
+from colpali_engine.models import ColPali
+from colpali_engine.utils.torch_utils import get_torch_device
+
+device = get_torch_device("auto")
+model = ColPali.from_pretrained("vidore/colpali-v1.2", torch_dtype=torch.bfloat16).to(device)
+
+# 直接把 PDF 页面图片编码成多向量
+page_images = pdf_to_images("document.pdf")
+doc_embeddings = model.forward_queries(page_images)  # 每页 → 多个向量
+
+# 用户查询（文字）
+query = "架构图里的 API Gateway 连接了哪些服务"
+query_embedding = model.forward_queries([query])
+
+# MaxSim 计算得分（Late Interaction）
+scores = torch.einsum("bnd,csd->bcns", query_embedding, doc_embeddings).max(dim=-1).values.sum(dim=-1)
+top_pages = scores.topk(5).indices  # 最相关的 5 页
+```
+
+**方案三：多模态 Embedding（统一向量空间）**
+
+```python
+# CLIP / ImageBind：把图文映射到同一向量空间
+from transformers import CLIPModel, CLIPProcessor
+import torch
+
+model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+# 图片编码
+def encode_image(image_path: str) -> np.ndarray:
+    image = Image.open(image_path)
+    inputs = processor(images=image, return_tensors="pt")
+    with torch.no_grad():
+        image_features = model.get_image_features(**inputs)
+    return image_features.numpy().squeeze()
+
+# 文本编码
+def encode_text(text: str) -> np.ndarray:
+    inputs = processor(text=text, return_tensors="pt", padding=True)
+    with torch.no_grad():
+        text_features = model.get_text_features(**inputs)
+    return text_features.numpy().squeeze()
+
+# 图文统一存入向量库，检索时文字查询能找到相关图片
+```
+
+**三种方案对比：**
+
+| 方案 | 实现难度 | 精度 | 成本 | 适用场景 |
+|------|----------|------|------|----------|
+| OCR/Caption | 低（现成API） | 中（依赖描述质量） | API费用 | 快速上线 |
+| ColPali | 中（需部署模型） | 高（原生理解） | GPU资源 | 精度要求高 |
+| CLIP 统一空间 | 中 | 中高 | GPU资源 | 图文混搜 |
+
+**面试话术：**
+> "多模态 RAG 有三种方案：最简单是 GPT-4o 把图片转文字描述再走普通 RAG，缺点是描述质量影响检索；最优的是 ColPali，直接把 PDF 页面编码成多向量，不需要 OCR，用 Late Interaction 检索，精度很高；CLIP 统一空间适合图文混合检索场景。我在处理技术文档 RAG 时用第一种，GPT-4o 生成图片描述入库，对架构图的查询准确率从 30% 提升到 85%。"
+
+</details>
+
+---
+
+### Q14: Parent-Document Retrieval 和 Sentence Window Retrieval 是什么？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**核心问题：RAG 分块的粒度矛盾**
+
+```
+小 chunk（256 tokens）：检索精准，但语义不完整 → 生成答案缺上下文
+大 chunk（2000 tokens）：语义完整，但检索不精准 → 召回很多无关内容
+```
+
+**解决方案：检索小块，返回大块**
+
+### Parent-Document Retrieval（父文档检索）
+
+```python
+from langchain.retrievers import ParentDocumentRetriever
+from langchain.storage import InMemoryStore
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# 两套分块器
+parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000)  # 大块：语义完整
+child_splitter  = RecursiveCharacterTextSplitter(chunk_size=400)   # 小块：检索精准
+
+# 存储：小块向量库，大块内存/数据库
+vectorstore  = Chroma(embedding_function=OpenAIEmbeddings())
+docstore     = InMemoryStore()  # 存储父文档
+
+retriever = ParentDocumentRetriever(
+    vectorstore=vectorstore,
+    docstore=docstore,
+    child_splitter=child_splitter,
+    parent_splitter=parent_splitter,
+)
+
+# 添加文档：自动切成小块建索引，同时保存父文档
+retriever.add_documents(documents)
+
+# 检索：用小块向量找，返回对应的大块（语义完整）
+results = retriever.get_relevant_documents("如何优化 RAG 检索")
+# → 检索到小块，但返回 2000 token 的父文档
+```
+
+**图示：**
+
+```
+原始文档（5000 tokens）
+    ↓ parent_splitter（2000 tokens/块）
+父文档 P1（2000t）│ 父文档 P2（2000t）│ 父文档 P3（1000t）
+    ↓ child_splitter（400 tokens/块）
+[C1][C2][C3][C4]  [C5][C6][C7][C8]  [C9][C10][C11]
+    ↑ 向量检索命中 C3
+    ↓ 返回 C3 所属的父文档 P1（语义完整的 2000 tokens）
+```
+
+### Sentence Window Retrieval（句子窗口检索）
+
+```python
+from llama_index.core.node_parser import SentenceWindowNodeParser
+from llama_index.core.postprocessor import MetadataReplacementPostProcessor
+
+# 按句子切分，但每个节点携带"前后 N 句"的窗口
+node_parser = SentenceWindowNodeParser.from_defaults(
+    window_size=3,  # 前后各 3 句
+    window_metadata_key="window",
+    original_text_metadata_key="original_text",
+)
+
+# 检索时用单句向量精准命中
+# 生成时用 window（该句 + 前后各3句）提供上下文
+
+postprocessor = MetadataReplacementPostProcessor(
+    target_metadata_key="window"  # 把节点内容替换为窗口内容
+)
+
+query_engine = index.as_query_engine(
+    similarity_top_k=5,
+    node_postprocessors=[postprocessor]
+)
+```
+
+**两种方案对比：**
+
+| 方案 | 检索粒度 | 返回粒度 | 适用场景 |
+|------|----------|----------|----------|
+| **Parent-Document** | 小 chunk（400t） | 父文档（2000t） | 长文档、结构化文档 |
+| **Sentence Window** | 单句（~50t） | 句子+上下文窗口 | 需要精确定位+上下文 |
+
+**面试话术：**
+> "Parent-Document Retrieval 是解决'检索精准和上下文完整'矛盾的最优方案。核心是两套分块：400 token 小块用于向量检索（精准），2000 token 大块用于 LLM 生成（完整）。命中小块后返回它的父文档给 LLM，既精准又完整。我在知识库问答项目用这个方案，比纯大块 chunking 的答案完整度提升 30%，比纯小块 chunking 的检索准确率提升 25%。"
+
+</details>
+
+---
+
+### Q15: 如何做 RAG 知识库的动态知识更新？有哪些策略？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**为什么需要动态知识更新？**
+
+```
+RAG 知识库不更新的问题：
+  - 产品手册更新了，但 RAG 还在回答旧版本
+  - 新政策发布，但 RAG 回答的是旧政策
+  - 用户质量反馈：答案过时，导致客诉
+```
+
+**三种更新策略：**
+
+### 策略一：批处理更新（Batch Update）
+
+```python
+import schedule
+from datetime import datetime
+
+class BatchKnowledgeUpdater:
+    def __init__(self, vector_store, doc_source):
+        self.vector_store = vector_store
+        self.doc_source = doc_source
+
+    def full_rebuild(self):
+        """全量重建（简单但停机时间长）"""
+        # 蓝绿部署：先建新库，切换后删旧库
+        new_collection = self.vector_store.create_collection(
+            f"knowledge_v{datetime.now().strftime('%Y%m%d')}"
+        )
+        # 导入所有最新文档
+        all_docs = self.doc_source.get_all_docs()
+        new_collection.add_documents(all_docs)
+
+        # 原子切换（无缝切换，零停机）
+        self.vector_store.switch_active_collection(new_collection.name)
+        # 保留旧库 24 小时作为回滚备份
+
+    def incremental_update(self, changed_docs: list):
+        """增量更新（只处理变化的文档）"""
+        for doc in changed_docs:
+            if doc["action"] == "add":
+                self.vector_store.add_documents([doc])
+            elif doc["action"] == "update":
+                # 先删旧的，再插新的
+                self.vector_store.delete(ids=[doc["id"]])
+                self.vector_store.add_documents([doc])
+            elif doc["action"] == "delete":
+                self.vector_store.delete(ids=[doc["id"]])
+
+# 每天凌晨 2 点增量更新
+schedule.every().day.at("02:00").do(
+    lambda: batch_updater.incremental_update(
+        get_changed_docs_since_last_update()
+    )
+)
+```
+
+### 策略二：实时更新（Real-time Update）
+
+```python
+from kafka import KafkaConsumer
+import threading
+
+class RealTimeKnowledgeUpdater:
+    def __init__(self, vector_store, kafka_topic):
+        self.vector_store = vector_store
+        self.consumer = KafkaConsumer(
+            kafka_topic,
+            bootstrap_servers=['localhost:9092'],
+            value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+        )
+
+    def start_listening(self):
+        """监听文档变更事件，实时更新向量库"""
+        def consume():
+            for message in self.consumer:
+                event = message.value
+                self.handle_change_event(event)
+
+        # 后台线程消费 Kafka 消息
+        thread = threading.Thread(target=consume, daemon=True)
+        thread.start()
+
+    def handle_change_event(self, event: dict):
+        """处理文档变更事件"""
+        doc_id = event["doc_id"]
+        action = event["action"]
+
+        if action in ("create", "update"):
+            # 异步向量化并更新
+            doc = fetch_latest_document(doc_id)
+            chunks = split_document(doc)
+            embeddings = embed_batch(chunks)
+
+            if action == "update":
+                # 删除旧版本（按文档ID过滤删除）
+                self.vector_store.delete(
+                    filter={"metadata.doc_id": doc_id}
+                )
+            self.vector_store.add_documents(chunks, embeddings)
+
+        elif action == "delete":
+            self.vector_store.delete(
+                filter={"metadata.doc_id": doc_id}
+            )
+```
+
+### 策略三：版本化知识库（适合需要回滚的场景）
+
+```python
+class VersionedKnowledgeBase:
+    def __init__(self, vector_store):
+        self.vector_store = vector_store
+        self.versions = {}
+        self.active_version = "v1.0"
+
+    def create_version(self, version: str, documents: list):
+        """创建新版本知识库"""
+        collection_name = f"knowledge_{version}"
+        collection = self.vector_store.create_collection(collection_name)
+        collection.add_documents(documents)
+        self.versions[version] = collection_name
+        return collection
+
+    def activate_version(self, version: str):
+        """灰度发布：逐步切换流量到新版本"""
+        # 金丝雀发布：先 10% 流量走新版本
+        self.active_version = version
+        print(f"切换到版本 {version}")
+
+    def rollback(self, version: str):
+        """快速回滚到指定版本"""
+        if version in self.versions:
+            self.active_version = version
+            print(f"回滚到版本 {version}")
+
+    def search(self, query: str, k: int = 5) -> list:
+        """查询时自动走当前激活版本"""
+        collection_name = self.versions[self.active_version]
+        return self.vector_store.get_collection(collection_name).search(query, k)
+```
+
+**三种策略对比：**
+
+| 策略 | 更新延迟 | 实现复杂度 | 停机风险 | 适用场景 |
+|------|----------|-----------|----------|----------|
+| **批处理（全量）** | 每天/每周 | 低 | 有（蓝绿部署可避免） | 低频更新的知识库 |
+| **批处理（增量）** | 每小时 | 中 | 无 | 中频更新 |
+| **实时** | 秒级 | 高（Kafka+异步） | 无 | 高频更新、实时性要求高 |
+
+**知识库版本管理最佳实践：**
+
+```python
+# 知识库更新时的一致性保证
+class AtomicKnowledgeUpdate:
+    def update_document(self, doc_id: str, new_content: str):
+        """原子更新：先插入新版本，再删除旧版本"""
+        new_doc_id = f"{doc_id}_v{int(time.time())}"
+
+        # 1. 插入新版本
+        new_chunks = split_and_embed(new_content)
+        self.vector_store.add_documents(
+            new_chunks,
+            metadata={"original_doc_id": doc_id, "version_id": new_doc_id}
+        )
+
+        # 2. 原子切换（两步操作中间不会有空窗期）
+        # 如果 Qdrant，可以用 collection aliases 做原子切换
+
+        # 3. 删除旧版本
+        self.vector_store.delete(
+            filter={"metadata.original_doc_id": doc_id,
+                    "metadata.version_id": {"$ne": new_doc_id}}
+        )
+```
+
+**面试话术：**
+> "动态知识更新有三种策略：批处理（每天凌晨全量或增量重建）、实时（Kafka 监听变更事件）、版本化（支持快速回滚）。关键点是'无缝切换'——用蓝绿部署或 collection aliases 做原子切换，新库建好后瞬间切换，不会有查到旧数据的空窗期。我做客服知识库用批处理增量更新，每小时扫描变更文档，先删旧向量再插新向量，P99 延迟在非高峰时段 500ms 以内完成单文档更新。"
+
+</details>
+
+---
+
+*版本: v2.0 | 更新: 2026-07-02 | 补充多模态RAG、Parent-Document Retrieval、动态知识更新*

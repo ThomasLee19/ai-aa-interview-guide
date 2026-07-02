@@ -448,14 +448,14 @@ class TokenBucketRateLimiter:
         self.tokens = capacity
         self.last_refill = time.time()
         self.lock = threading.Lock()
-    
+
     def _refill(self):
         now = time.time()
         elapsed = now - self.last_refill
         new_tokens = elapsed * self.rate
         self.tokens = min(self.capacity, self.tokens + new_tokens)
         self.last_refill = now
-    
+
     def acquire(self, tokens: int = 1, blocking: bool = True, timeout: float = None) -> bool:
         start = time.time()
         with self.lock:
@@ -485,7 +485,7 @@ class TokenRateLimiter:
         self.window = window_seconds
         self.tokens_used = deque()
         self.lock = asyncio.Lock()
-    
+
     async def acquire(self, tokens: int, timeout: float = 60) -> bool:
         start = time.time()
         while True:
@@ -513,7 +513,7 @@ class LLMCallWithBackpressure:
         self.rate_limiter = rate_limiter
         self.queue = asyncio.Queue(maxsize=max_queue_size)
         self.results = {}
-    
+
     async def submit(self, request_id: str, prompt: str) -> str:
         try:
             self.queue.put_nowait((time.time(), request_id, prompt))
@@ -522,7 +522,7 @@ class LLMCallWithBackpressure:
                 f"Queue full, current load={self.queue.qsize()}, max={self.queue.maxsize}"
             )
         return request_id
-    
+
     async def process(self):
         while True:
             ts, request_id, prompt = await self.queue.get()
@@ -584,7 +584,7 @@ class LLMRouter:
             "claude-3-5-sonnet": {"provider": "anthropic", "cost_per_1k": 0.003, "latency_p50": 1.5},
             "deepseek-chat": {"provider": "deepseek", "cost_per_1k": 0.00014, "latency_p50": 2.0},
         }
-    
+
     def route(self, request: LLMRequest, context: RoutingContext) -> str:
         if request.task_type == "qa" and request.complexity == "low":
             return "deepseek-chat"
@@ -610,7 +610,7 @@ class LLMABExperiment:
             "treatment": {"model": "claude-3-5-sonnet", "weight": 0.5},
         }
         self.metrics = defaultdict(lambda: {"requests": 0, "latencies": [], "errors": 0})
-    
+
     def get_variant(self, user_id: str) -> str:
         bucket = hash(user_id) % 100
         cumulative = 0
@@ -619,7 +619,7 @@ class LLMABExperiment:
             if bucket < cumulative:
                 return variant
         return "control"
-    
+
     def record(self, user_id: str, variant: str, latency: float, success: bool, quality_score: float = None):
         m = self.metrics[variant]
         m["requests"] += 1
@@ -640,16 +640,16 @@ class LLMGateway:
         self.rate_limiter = TokenRateLimiter(tpm_limit=400000)
         self.router = LLMRouter()
         self.cache = SemanticCache()
-    
+
     async def handle(self, request: LLMRequest) -> LLMResponse:
         tokens = estimate_tokens(request.prompt)
         if not await self.rate_limiter.acquire(tokens):
             raise RateLimitException("Too many requests")
-        
+
         cached = self.cache.get(request.prompt)
         if cached:
             return cached
-        
+
         model = self.router.route(request, self.get_context(request))
         response = await self.call_model(model, request)
         self.cache.set(request.prompt, response, ttl=3600)
@@ -1385,17 +1385,17 @@ def route_model(task: str) -> str:
     router_prompt = f"""
     判断这个任务需要什么规模的模型：
     任务：{task}
-    
+
     选项：
     A. 简单任务（问答、翻译）→ 用 gpt-4o-mini（$0.15/1M tokens）
     B. 中等任务（文案生成、摘要）→ 用 gpt-4o（$2.5/1M tokens）
     C. 复杂任务（代码生成、长文写作）→ 用 claude-opus-4.5（$15/1M tokens）
-    
+
     只回答 A/B/C
     """
-    
+
     complexity = llm.invoke(router_prompt)  # 小模型，极低延迟
-    
+
     return MODEL_MAP[complexity]
 ```
 
@@ -1473,3 +1473,312 @@ def route_model(task: str) -> str:
 > "Model Router 是 2026 年多模型策略的核心基础设施。本质是'让合适的模型做合适的事'——简单任务用便宜模型，复杂任务用贵模型，代码用 Claude，创意用 GPT。我实战中用三层路由：先规则过滤（明显错误的请求），再用 LLM 小模型判断复杂度，最后根据预算选择。关键指标是'路由准确率'——如果路由错导致任务失败，不仅没省钱还浪费了两次调用的成本。2026 年面试能说出三种路由模式的优缺点和选型决策树，说明你对多模型策略有实战理解。"
 
 </details>
+
+---
+
+### Q15: Go 如何用 Worker Pool 模式处理高并发 LLM 请求？有哪些踩坑点？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**为什么 LLM 请求需要 Worker Pool？**
+
+```
+问题：LLM API 有并发限制（如 OpenAI RPM/TPM），
+     朴素 goroutine-per-request 会导致：
+     - 瞬间打满 API 限额 → 429 Too Many Requests
+     - 内存无边界增长 → OOM
+     - 无法做背压控制 → 上游雪崩
+```
+
+**Worker Pool 核心实现（Go）：**
+
+```go
+type LLMWorkerPool struct {
+    taskCh  chan Task       // 任务队列（有缓冲 channel）
+    sem     chan struct{}   // 信号量控制并发数
+    wg      sync.WaitGroup
+}
+
+type Task struct {
+    Prompt string
+    Result chan<- string
+    Ctx    context.Context
+}
+
+func NewLLMWorkerPool(workers int, queueSize int) *LLMWorkerPool {
+    pool := &LLMWorkerPool{
+        taskCh: make(chan Task, queueSize),
+        sem:    make(chan struct{}, workers),
+    }
+    pool.start(workers)
+    return pool
+}
+
+func (p *LLMWorkerPool) start(workers int) {
+    for i := 0; i < workers; i++ {
+        p.wg.Add(1)
+        go func() {
+            defer p.wg.Done()
+            for task := range p.taskCh {
+                p.sem <- struct{}{}        // 获取令牌
+                go func(t Task) {
+                    defer func() { <-p.sem }() // 释放令牌
+                    result, err := callLLM(t.Ctx, t.Prompt)
+                    if err != nil {
+                        t.Result <- ""
+                        return
+                    }
+                    t.Result <- result
+                }(task)
+            }
+        }()
+    }
+}
+
+func (p *LLMWorkerPool) Submit(ctx context.Context, prompt string) <-chan string {
+    resultCh := make(chan string, 1)
+    select {
+    case p.taskCh <- Task{Prompt: prompt, Result: resultCh, Ctx: ctx}:
+        // 成功入队
+    default:
+        // 队列满了，直接返回错误
+        resultCh <- "queue full, please retry"
+    }
+    return resultCh
+}
+```
+
+**生产级参数配置：**
+
+| 参数 | 推荐值 | 说明 |
+|------|--------|------|
+| **workers** | API RPM / 60 | 例如 RPM=600，workers=10 |
+| **queueSize** | workers × 10 | 缓冲队列，防止瞬间流量 |
+| **超时** | 30s（生成）/ 5s（排队） | 分别控制 LLM 调用和入队等待 |
+| **重试** | 指数退避，最多 3 次 | 429/503 才重试，4xx 不重试 |
+
+**三大踩坑点：**
+
+1. **goroutine 泄漏**
+   - 问题：`ctx` 已取消，但 goroutine 还在等 LLM 响应
+   - 解法：每次调用都传入 `ctx`，LLM SDK 感知取消
+
+2. **队列满时的背压策略**
+   - 错误做法：直接 block，调用方卡住
+   - 正确做法：`select + default` 立即返回 503，上游触发限流
+
+3. **TPM 超限（Token Per Minute）**
+   - 问题：RPM 没超，但 prompt 太长导致 TPM 超限
+   - 解法：入队前估算 token 数，超限提前拒绝
+
+**面试话术：**
+> "Go 处理高并发 LLM 请求用 Worker Pool，核心是三层控制：有缓冲 channel 做任务队列，信号量控制 Worker 并发数，context 做超时取消。生产上我踩过两个坑：一是 goroutine 泄漏，ctx 取消后 LLM 调用还没结束，要确保 SDK 支持 context；二是 TPM 超限比 RPM 更难控，prompt 长的请求需要在入队前就估算 token，超预算直接降级用小模型或拒绝。优化后 P99 延迟从不稳定降到 180ms 以内，429 错误率从 8% 降到 0.1%。"
+
+</details>
+
+---
+
+### Q16: LLMOps 和 MLOps 有什么区别？LLM 应用上线后需要运维哪些东西？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**MLOps vs LLMOps 核心区别：**
+
+| 维度 | MLOps（传统 ML） | LLMOps（大模型） |
+|------|-----------------|-----------------|
+| **模型产物** | 自训练模型权重 | 调用第三方 API / 本地推理服务 |
+| **版本管理** | 模型版本 + 数据版本 | Prompt 版本 + RAG 知识库版本 |
+| **漂移检测** | 特征分布漂移 | 输入意图漂移 + 输出质量漂移 |
+| **评估指标** | Accuracy / AUC | Faithfulness / 幻觉率 / 满意度 |
+| **调试工具** | TensorBoard / MLflow | LangSmith / Langfuse / Arize |
+| **成本结构** | GPU 算力成本 | Token 消耗成本（按 API 计费） |
+
+**LLM 应用的完整运维体系：**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                LLMOps 四大支柱                            │
+├──────────────┬──────────────┬──────────────┬────────────┤
+│  1. Prompt   │  2. 质量监控 │  3. 成本控制 │ 4. 知识库  │
+│  版本管理    │              │              │ 运维        │
+├──────────────┼──────────────┼──────────────┼────────────┤
+│ • Git管理    │ • RAGAS 采样 │ • Token预算  │ • 增量更新 │
+│   Prompt     │   评估       │   告警       │ • 版本切换 │
+│ • A/B测试    │ • 幻觉率监控 │ • 模型路由   │ • 效果对比 │
+│ • 灰度发布   │ • 用户反馈   │ • 缓存命中率 │ • 脏数据   │
+│ • 回滚机制   │ • P99 TTFT   │ • 批量优化   │   治理     │
+└──────────────┴──────────────┴──────────────┴────────────┘
+```
+
+**Prompt 版本管理实战：**
+
+```go
+// Prompt 版本化存储（Git + 数据库双备份）
+type PromptVersion struct {
+    ID        string    `json:"id"`
+    Name      string    `json:"name"`
+    Version   string    `json:"version"`   // v1.0.0
+    Content   string    `json:"content"`
+    CreatedAt time.Time `json:"created_at"`
+    Metrics   struct {
+        AvgFaithfulness float64 `json:"avg_faithfulness"`  // RAGAS 指标
+        HallucinRate    float64 `json:"hallucin_rate"`
+        UserSatisfy     float64 `json:"user_satisfy"`
+    } `json:"metrics"`
+}
+
+// A/B 测试路由
+func routePrompt(userID string) *PromptVersion {
+    // 哈希分流：10% 流量走新版本
+    if hash(userID) % 10 == 0 {
+        return getPromptVersion("v2.0.0-canary")
+    }
+    return getPromptVersion("v1.0.0-stable")
+}
+```
+
+**质量监控关键指标（面试必背）：**
+
+| 指标 | 含义 | 告警阈值 | 工具 |
+|------|------|----------|------|
+| **Faithfulness** | 答案是否忠于检索内容 | < 0.85 告警 | RAGAS |
+| **幻觉率** | 答案包含无依据内容比例 | > 5% 告警 | 自定义检测 |
+| **TTFT P99** | 首字延迟 | > 2s 告警 | Prometheus |
+| **成功率** | 请求成功完成比例 | < 98% 告警 | Prometheus |
+| **Token/请求** | 平均 token 消耗 | 异常增长 50% | 成本告警 |
+
+**LLMOps 工具链：**
+
+```
+开发阶段：LangSmith / Langfuse（Trace 调试）
+评估阶段：RAGAS / DeepEval（自动化评估）
+生产监控：Prometheus + Grafana（指标）
+成本管理：LiteLLM Gateway（统一计费）
+Prompt 管理：Langfuse / PromptLayer
+```
+
+**面试话术：**
+> "LLMOps 和 MLOps 最大的区别在于'管的东西不一样'——传统 MLOps 管的是模型训练和数据管道，LLMOps 管的是 Prompt 版本、知识库质量和 Token 成本。LLM 应用上线后我们主要维护四块：一是 Prompt 版本管理，新版本用 A/B 测试灰度验证后再全量；二是质量监控，每天采样用 RAGAS 跑 Faithfulness 和幻觉率，指标下降自动告警；三是成本控制，LiteLLM Gateway 统一管 Token 预算；四是知识库运维，每小时增量更新，文档变更后 10 分钟内新向量生效。"
+
+</details>
+
+---
+
+### Q17: Prompt 管理在生产环境怎么做？版本控制、A/B 测试、灰度发布如何实现？
+
+<details>
+<summary>💡 答案要点</summary>
+
+**为什么 Prompt 需要专门管理？**
+
+```
+Prompt 是 LLM 应用的"代码"——改一行可能导致：
+- 输出格式全部变化 → 下游解析挂掉
+- 幻觉率上升 → 用户投诉激增
+- Token 消耗增加 → 成本暴涨
+
+所以 Prompt 必须像代码一样：版本化、可回滚、可灰度。
+```
+
+**完整 Prompt 管理方案：**
+
+**1. 版本化存储**
+
+```yaml
+# prompts/rag_answer/v2.1.0.yaml
+name: rag_answer
+version: v2.1.0
+description: "RAG 问答核心 Prompt，增加无答案时明确拒绝"
+author: xiaogaiguo
+created_at: 2026-07-02
+
+content: |
+  你是一个专业的企业知识库助手。请严格基于以下检索内容回答问题。
+
+  规则：
+  1. 只能使用检索内容中有明确依据的信息
+  2. 如果检索内容无法回答问题，直接说"根据现有资料无法回答"，不要编造
+  3. 关键数据（数字、日期、名称）必须与原文完全一致
+  4. 回答末尾标注引用来源
+
+  检索内容：
+  {{context}}
+
+  问题：{{question}}
+
+metrics:
+  faithfulness: 0.93     # RAGAS 评估值
+  hallucin_rate: 0.02    # 幻觉率
+  avg_tokens: 450        # 平均 token 消耗
+```
+
+**2. A/B 测试框架**
+
+```go
+type PromptABConfig struct {
+    ExperimentID string
+    ControlID    string  // 对照组：v2.0.0
+    TreatmentID  string  // 实验组：v2.1.0
+    TrafficRatio float64 // 实验组流量比例：0.1 = 10%
+}
+
+func selectPrompt(userID string, cfg PromptABConfig) string {
+    // 稳定哈希分流（同一用户始终进同一组）
+    h := fnv.New32a()
+    h.Write([]byte(userID + cfg.ExperimentID))
+    bucket := h.Sum32() % 100
+
+    if float64(bucket) < cfg.TrafficRatio*100 {
+        // 记录实验组分配
+        trackExperiment(userID, cfg.ExperimentID, "treatment")
+        return getPrompt(cfg.TreatmentID)
+    }
+    trackExperiment(userID, cfg.ExperimentID, "control")
+    return getPrompt(cfg.ControlID)
+}
+```
+
+**3. 灰度发布流程**
+
+```
+新 Prompt 上线流程：
+1. 开发 → 本地用 RAGAS 跑评估集（>100 个问题）
+2. 对比指标：Faithfulness / 幻觉率 / Token 消耗
+3. 指标全部优于当前版本 → 上灰度 (5% 流量)
+4. 灰度 24 小时无异常 → 扩到 50%
+5. 全量后保留旧版本 7 天（方便回滚）
+```
+
+**4. 快速回滚**
+
+```go
+// 一键回滚：数据库更新 + 内存缓存失效
+func rollbackPrompt(name string, targetVersion string) error {
+    if err := db.UpdateActiveVersion(name, targetVersion); err != nil {
+        return err
+    }
+    cache.Delete("prompt:" + name + ":active") // 清缓存，下次请求自动加载旧版
+    log.Infof("Prompt %s rolled back to %s", name, targetVersion)
+    return nil
+}
+```
+
+**工具选型：**
+
+| 工具 | 适用场景 |
+|------|----------|
+| **Langfuse** | 开源自托管，Prompt 版本 + Trace 调试一体 |
+| **PromptLayer** | SaaS，快速接入，适合小团队 |
+| **Git + YAML** | 最轻量，代码化管理，CI 集成评估 |
+| **自研** | 企业级合规要求，数据不出内网 |
+
+**面试话术：**
+> "Prompt 在生产环境必须像代码一样管理。我们用 Langfuse 做 Prompt 版本管理：每个版本有 YAML 描述 + RAGAS 评估指标，上线前必须跑评估集，Faithfulness 低于 0.90 的版本不允许上线。灰度策略是稳定哈希分流，保证同一用户始终在同一组，避免体验跳变。最关键的是回滚机制——数据库更新 + 清缓存两步，30 秒内完成回滚，遇到线上幻觉率异常可以立即止损。"
+
+</details>
+
+---
+
+*版本: v3.128 | 更新: 2026-07-02 | 补充 Go Worker Pool / LLMOps / Prompt 管理*
